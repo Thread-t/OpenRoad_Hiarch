@@ -1,4 +1,22 @@
-# split_net.py
+
+# ═══════════════════════════════════════════════════════════════════
+#
+#   split_net.py
+#   ────────────────────────────────────────────────────────────────
+#   Netlist Partitioning & OpenROAD Floorplan Generator
+#
+#   Parses a synthesized gate-level Verilog netlist, splits it into
+#   an adder block and a multiplier block, estimates each block's
+#   physical area from the Nangate .lib/.lef cell library, and
+#   auto-generates per-block OpenROAD TCL flow scripts with correct
+#   floorplan regions and placement blockages — supporting both
+#   automatic area-based splitting and manual user-defined floorplans
+#   (via config.json).
+#
+#   Author  : Sayak Deb
+#   Project : Digital Lab — Third Semester, Bremen
+#   Tools   : Python 3, OpenROAD, Yosys, Nangate45 Open Cell Library
+#
 # ─────────────────────────────────────────────────────────────
 import re
 import json
@@ -7,7 +25,25 @@ import os
 # ─────────────────────────────────────────────────────────────
 # CONFIGURATION
 # ─────────────────────────────────────────────────────────────
-CONFIG = {
+#CONFIG = {
+#   "chip_width"        : 200.0,
+#    "chip_height"       : 200.0,
+#    "dbu_per_micron"    : 1000,
+#    "aspect_ratio"      : 1.0,
+#    "utilization"       : 0.70,
+#    "margin"            : 3.0,
+#    "site"              : "FreePDK45_38x28_10R_NP_162NW_34O",
+#    "output_dir"        : "results",
+#    "verilog_file"      : "top_design_gate.v",
+#    "lib_file"          : "NangateOpenCellLibrary_typical.lib",
+#    "tech_lef_file"     : "NangateOpenCellLibrary.tech.lef",
+#    "lef_file"          : "NangateOpenCellLibrary.macro.mod.lef",
+#    "adder_module"      : "adder_32",
+#    "multiplier_module" : "multiplier_32"
+#} 
+# ─────────────────────────────────────────────────────────────
+
+DEFAULT_CONFIG = {
     "chip_width"        : 200.0,
     "chip_height"       : 200.0,
     "dbu_per_micron"    : 1000,
@@ -21,8 +57,36 @@ CONFIG = {
     "tech_lef_file"     : "NangateOpenCellLibrary.tech.lef",
     "lef_file"          : "NangateOpenCellLibrary.macro.mod.lef",
     "adder_module"      : "adder_32",
-    "multiplier_module" : "multiplier_32"
+    "multiplier_module" : "multiplier_32",
+
+    "manual_floorplan": {
+        "enable": False,
+        "adder_32": {
+            "llx_um": 0.0,   "lly_um": 0.0,
+            "urx_um": 140.0, "ury_um": 200.0
+        },
+        "multiplier_32": {
+            "llx_um": 140.0, "lly_um": 0.0,
+            "urx_um": 200.0, "ury_um": 200.0
+        }
+    }
 }
+
+def load_config(json_path="config.json"):
+    """Load user config from JSON and merge it onto the defaults."""
+    config = json.loads(json.dumps(DEFAULT_CONFIG))  # deep copy
+    if os.path.exists(json_path):
+        print(f"  📄 Loading user config from: {json_path}")
+        with open(json_path) as f:
+            user_config = json.load(f)
+        for key, value in user_config.items():
+            if isinstance(value, dict) and key in config and isinstance(config[key], dict):
+                config[key].update(value)   # shallow-merge nested dicts (e.g. manual_floorplan)
+            else:
+                config[key] = value
+    else:
+        print(f"  No {json_path} found — using built-in defaults")
+    return config
 
 # Keywords that are NOT cell instances
 SKIP_KEYWORDS = {
@@ -190,7 +254,7 @@ def get_cell_area_from_lib(lib_file):
     print(f"  Found {len(cell_starts)} cell definitions")
 
     for i, (cname, start) in enumerate(cell_starts):
-        # Body = text until next 'cell' or end
+
         end = cell_starts[i+1][1] if i+1 < len(cell_starts) else len(content)
         body = content[start:end]
 
@@ -305,7 +369,7 @@ def extract_module_to_file(module_contents, module_name,
 # ─────────────────────────────────────────────────────────────
 # STEP 7: GENERATE TCL SCRIPT
 # ─────────────────────────────────────────────────────────────
-def generate_tcl(config, block_name, verilog_path, output_dir):
+def generate_tcl(config, block_name, verilog_path, output_dir, own_region, blocked_region):
     """Generate OpenROAD TCL script"""
 
     os.makedirs(os.path.join(output_dir, "reports"), exist_ok=True)
@@ -332,14 +396,20 @@ def generate_tcl(config, block_name, verilog_path, output_dir):
         f.write(f"read_verilog {verilog_abs}\n")
         f.write(f"link_design  {block_name}\n\n")
 
-        f.write(f"# === Floorplan ===\n")
+        f.write(f"# === Floorplan (block's actual chip-coordinate region) ===\n")
         f.write(f"initialize_floorplan \\\n")
-        f.write(f"  -aspect_ratio {config['aspect_ratio']} \\\n")
-        f.write(f"  -utilization  {int(config['utilization']*100)} \\\n")
-        f.write(f"  -core_space   "
-                f"\"{config['margin']} {config['margin']} "
-                f"{config['margin']} {config['margin']}\" \\\n")
-        f.write(f"  -site         {config['site']}\n\n")
+        f.write(f"  -die_area  \"{own_region['llx_um']} {own_region['lly_um']} "
+                f"{own_region['urx_um']} {own_region['ury_um']}\" \\\n")
+        f.write(f"  -core_area \"{own_region['llx_um']+config['margin']} "
+                f"{own_region['lly_um']+config['margin']} "
+                f"{own_region['urx_um']-config['margin']} "
+                f"{own_region['ury_um']-config['margin']}\" \\\n")
+        f.write(f"  -site      {config['site']}\n\n")
+
+        f.write(f"# === Block sibling region (cannot be placed into) ===\n")
+        f.write(f"create_blockage -bbox {{{blocked_region['llx_um']} {blocked_region['lly_um']} "
+                f"{blocked_region['urx_um']} {blocked_region['ury_um']}}} "
+                f"-type placement -name blockage_{block_name}\n\n")
 
         f.write(f"# === Initialize routing tracks ===\n")
         f.write(f"make_tracks\n\n")
@@ -448,20 +518,100 @@ def split_design(config):
     print(f"  Adder gets   : {split_ratio*100:.1f}% of chip")
     print(f"  Mult  gets   : {(1-split_ratio)*100:.1f}% of chip")
 
+    # ── 5. Calculate Regions ── <Not useful now>
+    #split_x = round(config["chip_width"] * split_ratio, 3)
+
+    #adder_region = {
+    #   "llx_um": 0.0,          "lly_um": 0.0,
+    #    "urx_um": split_x,      "ury_um": config["chip_height"]
+    #}
+    #mult_region = {
+    #    "llx_um": split_x,      "lly_um": 0.0,
+    #    "urx_um": config["chip_width"], "ury_um": config["chip_height"]
+    #}
+
+    #print(f"\n  Adder region : (0, 0) → ({split_x}, {config['chip_height']})")
+    #print(f"  Mult  region : ({split_x}, 0) → ({config['chip_width']}, {config['chip_height']})")
+
+    #----------------------- Sayak ------------------------
     # ── 5. Calculate Regions ──
-    split_x = round(config["chip_width"] * split_ratio, 3)
+    if config["manual_floorplan"]["enable"]:
+        print(f"\n   Using MANUAL floorplan from config.json (area-based split ignored)")
 
-    adder_region = {
-        "llx_um": 0.0,          "lly_um": 0.0,
-        "urx_um": split_x,      "ury_um": config["chip_height"]
-    }
-    mult_region = {
-        "llx_um": split_x,      "lly_um": 0.0,
-        "urx_um": config["chip_width"], "ury_um": config["chip_height"]
-    }
+        mf = config["manual_floorplan"]
+        missing = [name for name in (adder_name, mult_name) if name not in mf]
+        if missing:
+            print(f"\n  manual_floorplan is enabled but missing region(s) for: {missing}")
+            print(f"     'adder_module' = '{adder_name}'")
+            print(f"     'multiplier_module' = '{mult_name}'")
+            print(f"  → manual_floorplan keys in config.json must match these exactly.")
+            print(f"     Current manual_floorplan keys: {[k for k in mf.keys() if k != 'enable']}")
+            raise SystemExit(1)
 
-    print(f"\n  Adder region : (0, 0) → ({split_x}, {config['chip_height']})")
-    print(f"  Mult  region : ({split_x}, 0) → ({config['chip_width']}, {config['chip_height']})")
+        required_fields = {"llx_um", "lly_um", "urx_um", "ury_um"}
+        for name in (adder_name, mult_name):
+            missing_fields = required_fields - set(mf[name].keys())
+            if missing_fields:
+                print(f"\n  manual_floorplan['{name}'] is missing field(s): {missing_fields}")
+                raise SystemExit(1)
+
+        adder_region = mf[adder_name]
+        mult_region  = mf[mult_name]
+
+        if not (adder_region["urx_um"] <= mult_region["llx_um"] or
+                mult_region["urx_um"] <= adder_region["llx_um"] or
+                adder_region["ury_um"] <= mult_region["lly_um"] or
+                mult_region["ury_um"] <= adder_region["lly_um"]):
+            print(f"\n   WARNING: adder_region and multiplier_region appear to OVERLAP!")
+            print(f"     Adder : {adder_region}")
+            print(f"     Mult  : {mult_region}")
+
+        for name, region in [(adder_name, adder_region), (mult_name, mult_region)]:
+            if (region["urx_um"] > config["chip_width"] or
+                region["ury_um"] > config["chip_height"] or
+                region["llx_um"] < 0 or region["lly_um"] < 0):
+                print(f"\n   WARNING: region for '{name}' extends outside "
+                      f"the {config['chip_width']}×{config['chip_height']} chip!")
+                print(f"     Region: {region}")
+
+        split_x = adder_region["urx_um"]
+    else:
+        split_x = round(config["chip_width"] * split_ratio, 3)
+        adder_region = {
+            "llx_um": 0.0,          "lly_um": 0.0,
+            "urx_um": split_x,      "ury_um": config["chip_height"]
+        }
+        mult_region = {
+            "llx_um": split_x,      "lly_um": 0.0,
+            "urx_um": config["chip_width"], "ury_um": config["chip_height"]
+        }
+
+
+    print(f"\n  Adder region : ({adder_region['llx_um']}, {adder_region['lly_um']}) → ({adder_region['urx_um']}, {adder_region['ury_um']})")
+    print(f"  Mult  region : ({mult_region['llx_um']}, {mult_region['lly_um']}) → ({mult_region['urx_um']}, {mult_region['ury_um']})")
+
+    # ── Cross-check: manual floorplan vs. area-based estimate ──
+    if config["manual_floorplan"]["enable"]:
+        adder_manual_area = (adder_region["urx_um"] - adder_region["llx_um"]) * \
+                             (adder_region["ury_um"] - adder_region["lly_um"])
+        mult_manual_area  = (mult_region["urx_um"]  - mult_region["llx_um"])  * \
+                             (mult_region["ury_um"]  - mult_region["lly_um"])
+        manual_split_ratio = adder_manual_area / (adder_manual_area + mult_manual_area)
+
+        print(f"\n Manual vs. area-estimate check:")
+        print(f"     Manual split   : adder = {manual_split_ratio*100:.1f}%  "
+              f"mult = {(1-manual_split_ratio)*100:.1f}%")
+        print(f"     Area estimate  : adder = {split_ratio*100:.1f}%  "
+              f"mult = {(1-split_ratio)*100:.1f}%")
+
+        deviation = abs(manual_split_ratio - split_ratio) * 100
+        if deviation > 10:
+            print(f" Manual split gives adder {manual_split_ratio*100:.1f}%, "
+                  f"but area estimate suggests {split_ratio*100:.1f}% "
+                  f"— consider adjusting (deviation: {deviation:.1f} pts)")
+        else:
+            print(f" Within {deviation:.1f} pts of area estimate — looks reasonable")
+
 
     # ── 6. Create Dirs ──
     adder_dir = os.path.join(config["output_dir"], "adder")
@@ -485,8 +635,8 @@ def split_design(config):
     print(f"  GENERATING TCL SCRIPTS")
     print(f"{'='*55}")
 
-    generate_tcl(config, adder_name, adder_v, adder_dir)
-    generate_tcl(config, mult_name,  mult_v,  mult_dir)
+    generate_tcl(config, adder_name, adder_v, adder_dir, adder_region, mult_region)
+    generate_tcl(config, mult_name,  mult_v,  mult_dir,  mult_region,  adder_region)
 
     # ── 9. Save JSON ──
     partition_info = {
@@ -539,5 +689,11 @@ def split_design(config):
     print(f"{'='*55}\n")
 
 
+#if __name__ == "__main__":
+#   split_design(CONFIG)
+
 if __name__ == "__main__":
-    split_design(CONFIG)
+    import sys
+    json_path = sys.argv[1] if len(sys.argv) > 1 else "config.json"
+    config = load_config(json_path)
+    split_design(config)
