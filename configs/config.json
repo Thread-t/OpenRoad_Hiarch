@@ -1,28 +1,27 @@
 {
-  "chip_width": 200.0,
-  "chip_height": 200.0,
-  "dbu_per_micron": 1000,
-  "utilization": 0.70,
-  "margin": 3.0,
-  "site": "FreePDK45_38x28_10R_NP_162NW_34O",
-
-  "output_dir": "generated",
+  "_comment": "ARYA UPDATE V1: Updated file paths to use the project folder structure. The Verilog and library files are now read from the inputs/ folder so everyone can run the script without moving files.",
 
   "verilog_file": "inputs/top_design_gate.v",
   "lib_file": "inputs/NangateOpenCellLibrary_typical.lib",
   "tech_lef_file": "inputs/NangateOpenCellLibrary.tech.lef",
   "lef_file": "inputs/NangateOpenCellLibrary.macro.mod.lef",
 
-  "top_module": "top_design",
-  "top_wrapper_module": "top_wrapper",
-
   "adder_module": "adder_32",
   "multiplier_module": "multiplier_32",
 
-  "generate_top_wrapper": true,
+  "chip_width": 200.0,
+  "chip_height": 200.0,
+  "dbu_per_micron": 1000,
+  "aspect_ratio": 1.0,
+  "utilization": 0.70,
+  "margin": 3.0,
+  "site": "FreePDK45_38x28_10R_NP_162NW_34O",
 
-  "coordinate_mode": "local_macro", 
+  "output_dir": "generated",
+  
+"_comment_v17": "ARYA UPDATE V2: Added coordinate_mode to support both global_partition and local_macro coordinate generation. local_macro resets each partition origin to (0,0) for correct Macro LEF generation.",
 
+  "coordinate_mode": "local_macro",
   "manual_floorplan": {
     "enable": true,
 
@@ -39,19 +38,6 @@
       "urx_um": 200.0,
       "ury_um": 200.0
     }
-  },
-
-  "block_overrides": {
-    "adder_32": {
-      "placement_density": 0.70,
-      "pin_hor_layer": "metal3",
-      "pin_ver_layer": "metal4"
-    },
-
-    "multiplier_32": {
-      "placement_density": 0.55,
-      "pin_hor_layer": "metal3",
-      "pin_ver_layer": "metal4"
-    }
   }
 }
+

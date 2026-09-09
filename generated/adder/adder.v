@@ -1,4 +1,4 @@
-// Auto-extracted by split_net_v4.py
+// Auto-extracted by split_net_v2_arya.py
 // Module: adder_32
 
 module adder_32 (

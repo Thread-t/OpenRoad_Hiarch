@@ -19,11 +19,11 @@ link_design  multiplier_32
 
 # === Floorplan for this block region ===
 # Base logic preserved: this block uses assigned chip region.
+# Coordinate mode: local_macro
+# Local macro mode: block hardened from (0,0); global placement saved in JSON.
 initialize_floorplan \
   -die_area  "0.0 0.0 80.0 200.0" \
   -core_area "3.0 3.0 77.0 197.0" \
-# Coordinate mode: local_macro
-# Local macro mode: block hardened from (0,0); global placement saved in JSON.
   -site      FreePDK45_38x28_10R_NP_162NW_34O
 
 # === Sibling blocked region information ===
@@ -36,10 +36,8 @@ initialize_floorplan \
 # === Initialize routing tracks ===
 make_tracks
 
-# === Optional routing layer guidance ===
-if {[info commands set_routing_layers] != ""} {
-  set_routing_layers -signal metal4-metal10
-}
+# === Routing layer guidance disabled ===
+# set_routing_layers -signal metal4-metal10
 
 # === Pin placement ===
 place_pins -hor_layers metal3 -ver_layers metal4

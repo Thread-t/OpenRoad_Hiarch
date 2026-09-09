@@ -46,7 +46,14 @@ import copy
 # script portable for all team members.
 # ==========================================================
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = SCRIPT_DIR
+
+# ==========================================================
+# ARYA UPDATE V14:
+# The script is stored inside the scripts/ directory.
+# Therefore, the project root is one directory above it.
+# This keeps inputs/, configs/, and generated/ paths correct.
+# ==========================================================
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 
 
 def project_path(path):
@@ -811,6 +818,26 @@ def generate_tcl(
             core_ury = own_region["ury_um"] - config["margin"]
         # `````````````````````````````Sayak````````````````````````````````` #`
 
+        # ======================================================
+#         # ======================================================
+        # ARYA UPDATE V15:
+        # Coordinate-mode comments must be written before the
+        # initialize_floorplan command.
+        # ======================================================
+
+        f.write(f"# Coordinate mode: {coordinate_mode}\n")
+
+        if coordinate_mode == "local_macro":
+            f.write(
+                "# Local macro mode: block hardened from (0,0); "
+                "global placement saved in JSON.\n"
+            )
+        else:
+            f.write(
+                "# Global partition mode: block hardened using "
+                "full-chip coordinates.\n"
+            )
+
         f.write("initialize_floorplan \\\n")
         f.write(
             f"  -die_area  \"{die_llx} {die_lly} {die_urx} {die_ury}\" \\\n"
@@ -818,13 +845,6 @@ def generate_tcl(
         f.write(
             f"  -core_area \"{core_llx} {core_lly} {core_urx} {core_ury}\" \\\n"
         )
-
-        f.write(f"# Coordinate mode: {coordinate_mode}\n")
-        if coordinate_mode == "local_macro":
-            f.write("# Local macro mode: block hardened from (0,0); global placement saved in JSON.\n")
-        else:
-            f.write("# Global partition mode: block hardened using full-chip coordinates.\n")
-
         f.write(f"  -site      {config['site']}\n\n")
 
         f.write("# === Sibling blocked region information ===\n")
@@ -854,10 +874,20 @@ def generate_tcl(
         f.write("# === Initialize routing tracks ===\n")
         f.write("make_tracks\n\n")
 
-        f.write("# === Optional routing layer guidance ===\n")
-        f.write("if {[info commands set_routing_layers] != \"\"} {\n")
-        f.write("  set_routing_layers -signal metal4-metal10\n")
-        f.write("}\n\n")
+        # ======================================================
+        # ======================================================
+        # ARYA UPDATE V16:
+        # Disabled signal-routing layer restriction.
+        #
+        # Restricting signals to metal4-metal10 caused DRT-0255
+        # because the detailed router could not access some IO
+        # and standard-cell pins through the lower layers.
+        #
+        # OpenROAD is now allowed to select the required routing
+        # layers automatically.
+        # ======================================================
+        f.write("# === Routing layer guidance disabled ===\n")
+        f.write("# set_routing_layers -signal metal4-metal10\n\n")
 
         f.write("# === Pin placement ===\n")
         f.write(

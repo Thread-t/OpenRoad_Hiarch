@@ -1,4 +1,4 @@
-// Auto-extracted by split_net_v4.py
+// Auto-extracted by split_net_v2_arya.py
 // Module: multiplier_32
 
 module multiplier_32 (
