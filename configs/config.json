@@ -1,0 +1,18 @@
+{
+  "verilog_file"       : "top_design_gate.v",
+  "adder_module"       : "adder_32",
+  "multiplier_module"  : "multiplier_32",
+  "chip_width"         : 200.0,
+  "chip_height"        : 200.0,
+  "manual_floorplan": {
+    "enable": true,
+    "adder_32": {
+      "llx_um": 0.0,   "lly_um": 0.0,
+      "urx_um": 120.0, "ury_um": 200.0
+    },
+    "multiplier_32": {
+      "llx_um": 120.0, "lly_um": 0.0,
+      "urx_um": 200.0, "ury_um": 200.0
+    }
+  }
+}
