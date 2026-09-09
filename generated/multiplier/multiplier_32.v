@@ -1,12 +1,11 @@
-// Auto-extracted by split_net.py
+// Auto-extracted by split_net_v4.py
 // Module: multiplier_32
 
 module multiplier_32 (
-    
+    a, b, product
 );
 
-(a, b, product);
-  input [31:0] a;
+input [31:0] a;
   wire [31:0] a;
   input [31:0] b;
   wire [31:0] b;

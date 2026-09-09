@@ -1,12 +1,11 @@
-// Auto-extracted by split_net.py
+// Auto-extracted by split_net_v4.py
 // Module: adder_32
 
 module adder_32 (
-    
+    a, b, sum
 );
 
-(a, b, sum);
-  wire _000_;
+wire _000_;
   wire _001_;
   wire _002_;
   wire _003_;

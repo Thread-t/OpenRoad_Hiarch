@@ -5,38 +5,25 @@
     "dbu_per_micron": 1000
   },
   "modules": {
+    "top": "top_design",
+    "top_wrapper": "top_wrapper",
     "adder": "adder_32",
     "multiplier": "multiplier_32"
   },
   "area_estimation": {
     "adder": {
-      "cell_counts": {
-        "INV_X1": 12,
-        "NOR2_X1": 14,
-        "NAND2_X1": 15,
-        "AOI22_X1": 1,
-        "NOR3_X1": 4,
-        "OR3_X1": 2,
-        "OAI21_X1": 18,
-        "AOI21_X1": 15,
-        "NAND3_X1": 1,
-        "AND2_X1": 13,
-        "OAI211_X1": 1,
-        "XNOR2_X1": 47,
-        "OR2_X1": 10,
-        "XOR2_X1": 12
-      },
-      "estimated_area_um2": 252.0882
+      "module": "adder_32",
+      "cell_counts": {},
+      "estimated_area_um2": 0.0
     },
     "multiplier": {
-      "cell_counts": {
-        "AND2_X1": 63
-      },
-      "estimated_area_um2": 87.14160000000001
+      "module": "multiplier_32",
+      "cell_counts": {},
+      "estimated_area_um2": 0.0
     }
   },
   "partition": {
-    "split_ratio": 0.7431192660550459,
+    "split_ratio": 0.5,
     "split_direction": "vertical",
     "adder_region": {
       "llx_um": 0.0,
@@ -49,12 +36,43 @@
       "lly_um": 0.0,
       "urx_um": 200.0,
       "ury_um": 200.0
+    },
+    "adder_blocked_region": {
+      "llx_um": 120.0,
+      "lly_um": 0.0,
+      "urx_um": 200.0,
+      "ury_um": 200.0
+    },
+    "multiplier_blocked_region": {
+      "llx_um": 0.0,
+      "lly_um": 0.0,
+      "urx_um": 120.0,
+      "ury_um": 200.0
+    }
+  },
+  "openroad": {
+    "site": "FreePDK45_38x28_10R_NP_162NW_34O",
+    "default_utilization": 0.7,
+    "margin_um": 3.0,
+    "block_overrides": {
+      "adder_32": {
+        "placement_density": 0.7,
+        "pin_hor_layer": "metal3",
+        "pin_ver_layer": "metal4"
+      },
+      "multiplier_32": {
+        "placement_density": 0.55,
+        "pin_hor_layer": "metal3",
+        "pin_ver_layer": "metal4"
+      }
     }
   },
   "files": {
-    "adder_verilog": "results/adder/adder.v",
-    "mult_verilog": "results/multiplier/multiplier.v",
-    "adder_tcl": "results/adder/adder_32_flow.tcl",
-    "mult_tcl": "results/multiplier/multiplier_32_flow.tcl"
+    "source_verilog": "inputs/top_design_gate.v",
+    "adder_verilog": "generated/adder/adder_32.v",
+    "multiplier_verilog": "generated/multiplier/multiplier_32.v",
+    "top_wrapper_verilog": "generated/top_wrapper.v",
+    "adder_tcl": "generated/adder/adder_32_flow.tcl",
+    "multiplier_tcl": "generated/multiplier/multiplier_32_flow.tcl"
   }
 }

@@ -1,18 +1,57 @@
 {
-  "verilog_file"       : "top_design_gate.v",
-  "adder_module"       : "adder_32",
-  "multiplier_module"  : "multiplier_32",
-  "chip_width"         : 200.0,
-  "chip_height"        : 200.0,
+  "chip_width": 200.0,
+  "chip_height": 200.0,
+  "dbu_per_micron": 1000,
+  "utilization": 0.70,
+  "margin": 3.0,
+  "site": "FreePDK45_38x28_10R_NP_162NW_34O",
+
+  "output_dir": "generated",
+
+  "verilog_file": "inputs/top_design_gate.v",
+  "lib_file": "inputs/NangateOpenCellLibrary_typical.lib",
+  "tech_lef_file": "inputs/NangateOpenCellLibrary.tech.lef",
+  "lef_file": "inputs/NangateOpenCellLibrary.macro.mod.lef",
+
+  "top_module": "top_design",
+  "top_wrapper_module": "top_wrapper",
+
+  "adder_module": "adder_32",
+  "multiplier_module": "multiplier_32",
+
+  "generate_top_wrapper": true,
+
+  "coordinate_mode": "local_macro", 
+
   "manual_floorplan": {
     "enable": true,
+
     "adder_32": {
-      "llx_um": 0.0,   "lly_um": 0.0,
-      "urx_um": 120.0, "ury_um": 200.0
+      "llx_um": 0.0,
+      "lly_um": 0.0,
+      "urx_um": 120.0,
+      "ury_um": 200.0
     },
+
     "multiplier_32": {
-      "llx_um": 120.0, "lly_um": 0.0,
-      "urx_um": 200.0, "ury_um": 200.0
+      "llx_um": 120.0,
+      "lly_um": 0.0,
+      "urx_um": 200.0,
+      "ury_um": 200.0
+    }
+  },
+
+  "block_overrides": {
+    "adder_32": {
+      "placement_density": 0.70,
+      "pin_hor_layer": "metal3",
+      "pin_ver_layer": "metal4"
+    },
+
+    "multiplier_32": {
+      "placement_density": 0.55,
+      "pin_hor_layer": "metal3",
+      "pin_ver_layer": "metal4"
     }
   }
 }
