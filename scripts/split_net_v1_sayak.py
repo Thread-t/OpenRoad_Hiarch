@@ -1,139 +1,212 @@
-
 # ═══════════════════════════════════════════════════════════════════
 #
-#   split_net.py
+#   split_net_v2_arya.py
 #   ────────────────────────────────────────────────────────────────
 #   Netlist Partitioning & OpenROAD Floorplan Generator
 #
-#   Parses a synthesized gate-level Verilog netlist, splits it into
-#   an adder block and a multiplier block, estimates each block's
-#   physical area from the Nangate .lib/.lef cell library, and
-#   auto-generates per-block OpenROAD TCL flow scripts with correct
-#   floorplan regions and placement blockages — supporting both
-#   automatic area-based splitting and manual user-defined floorplans
-#   (via config.json).
+#   Based on:
+#   split_net_v2_sayak.py
 #
-#   Author  : Sayak Deb
-#   Project : Digital Lab — Third Semester, Bremen
-#   Tools   : Python 3, OpenROAD, Yosys, Nangate45 Open Cell Library
+#   Purpose:
+#   Parses a synthesized Nangate gate-level Verilog netlist, splits it
+#   into adder and multiplier blocks, estimates area using Nangate
+#   .lib/.lef files, supports manual floorplan regions from config.json,
+#   and generates OpenROAD TCL scripts.
 #
-# ─────────────────────────────────────────────────────────────
+#   ARYA UPDATE SUMMARY:
+#   1. Added project-root based path handling.
+#   2. Default config file is now configs/config.json.
+#   3. Input files are read from inputs/.
+#   4. Generated files are written to generated/.
+#   5. TCL files now use Linux/WSL-friendly relative paths instead of
+#      Windows absolute paths.
+#   6. Every changed section is marked with ARYA UPDATE comments.\n#   7. ARYA UPDATE V9: Disabled create_blockage because this OpenROAD version does not support create_blockage -bbox.
+#
+#   Project folder expected:
+#
+#   Hierarchical_OpenROAD_Framework/
+#   ├── inputs/
+#   │   ├── top_design_gate.v
+#   │   ├── NangateOpenCellLibrary_typical.lib
+#   │   ├── NangateOpenCellLibrary.tech.lef
+#   │   └── NangateOpenCellLibrary.macro.mod.lef
+#   ├── configs/
+#   │   └── config.json
+#   ├── scripts/
+#   │   └── split_net_v2_arya.py
+#   └── generated/
+#
+# ═══════════════════════════════════════════════════════════════════
+
+import os
 import re
 import json
-import os
+import sys
 
-# ─────────────────────────────────────────────────────────────
-# CONFIGURATION
-# ─────────────────────────────────────────────────────────────
-#CONFIG = {
-#   "chip_width"        : 200.0,
-#    "chip_height"       : 200.0,
-#    "dbu_per_micron"    : 1000,
-#    "aspect_ratio"      : 1.0,
-#    "utilization"       : 0.70,
-#    "margin"            : 3.0,
-#    "site"              : "FreePDK45_38x28_10R_NP_162NW_34O",
-#    "output_dir"        : "results",
-#    "verilog_file"      : "top_design_gate.v",
-#    "lib_file"          : "NangateOpenCellLibrary_typical.lib",
-#    "tech_lef_file"     : "NangateOpenCellLibrary.tech.lef",
-#    "lef_file"          : "NangateOpenCellLibrary.macro.mod.lef",
-#    "adder_module"      : "adder_32",
-#    "multiplier_module" : "multiplier_32"
-#} 
-# ─────────────────────────────────────────────────────────────
+
+# ==========================================================
+# ARYA UPDATE V1:
+# Added project-root path handling.
+# This avoids hardcoded Windows/Linux paths and makes the
+# script portable for all team members.
+# ==========================================================
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+
+
+def project_path(path):
+    """Return absolute path relative to project root."""
+    if os.path.isabs(path):
+        return path
+    return os.path.join(PROJECT_ROOT, path)
+
+
+def tcl_path(path):
+    """
+    ARYA UPDATE V6:
+    Convert an absolute/relative path into a TCL-friendly path
+    relative to the project root, using forward slashes.
+
+    Example:
+    C:\\...\\Hierarchical_OpenROAD_Framework\\inputs\\file.lef
+    becomes:
+    inputs/file.lef
+
+    This avoids Windows paths inside OpenROAD TCL.
+    """
+    rel = os.path.relpath(path, PROJECT_ROOT)
+    return rel.replace("\\", "/")
+
 
 DEFAULT_CONFIG = {
-    "chip_width"        : 200.0,
-    "chip_height"       : 200.0,
-    "dbu_per_micron"    : 1000,
-    "aspect_ratio"      : 1.0,
-    "utilization"       : 0.70,
-    "margin"            : 3.0,
-    "site"              : "FreePDK45_38x28_10R_NP_162NW_34O",
-    "output_dir"        : "results",
-    "verilog_file"      : "top_design_gate.v",
-    "lib_file"          : "NangateOpenCellLibrary_typical.lib",
-    "tech_lef_file"     : "NangateOpenCellLibrary.tech.lef",
-    "lef_file"          : "NangateOpenCellLibrary.macro.mod.lef",
-    "adder_module"      : "adder_32",
-    "multiplier_module" : "multiplier_32",
+    "chip_width": 200.0,
+    "chip_height": 200.0,
+    "dbu_per_micron": 1000,
+    "aspect_ratio": 1.0,
+    "utilization": 0.70,
+    "margin": 3.0,
+    "site": "FreePDK45_38x28_10R_NP_162NW_34O",
+
+    # ======================================================
+    # ARYA UPDATE V2:
+    # Updated default paths to match our common team folder:
+    # inputs/ and generated/.
+    # ======================================================
+    "output_dir": "generated",
+    "verilog_file": "inputs/top_design_gate.v",
+    "lib_file": "inputs/NangateOpenCellLibrary_typical.lib",
+    "tech_lef_file": "inputs/NangateOpenCellLibrary.tech.lef",
+    "lef_file": "inputs/NangateOpenCellLibrary.macro.mod.lef",
+
+    "adder_module": "adder_32",
+    "multiplier_module": "multiplier_32",
 
     "manual_floorplan": {
         "enable": False,
         "adder_32": {
-            "llx_um": 0.0,   "lly_um": 0.0,
-            "urx_um": 140.0, "ury_um": 200.0
+            "llx_um": 0.0,
+            "lly_um": 0.0,
+            "urx_um": 120.0,
+            "ury_um": 200.0
         },
         "multiplier_32": {
-            "llx_um": 140.0, "lly_um": 0.0,
-            "urx_um": 200.0, "ury_um": 200.0
+            "llx_um": 120.0,
+            "lly_um": 0.0,
+            "urx_um": 200.0,
+            "ury_um": 200.0
         }
     }
 }
 
-def load_config(json_path="config.json"):
-    """Load user config from JSON and merge it onto the defaults."""
-    config = json.loads(json.dumps(DEFAULT_CONFIG))  # deep copy
+
+# ==========================================================
+# ARYA UPDATE V3:
+# Default config is now loaded from configs/config.json.
+# User can still pass another config path in command line.
+# ==========================================================
+def load_config(json_path=None):
+    config = json.loads(json.dumps(DEFAULT_CONFIG))
+
+    if json_path is None:
+        json_path = project_path("configs/config.json")
+    else:
+        json_path = project_path(json_path)
+
     if os.path.exists(json_path):
-        print(f"  📄 Loading user config from: {json_path}")
-        with open(json_path) as f:
+        print("Loading config:", json_path)
+        with open(json_path, "r") as f:
             user_config = json.load(f)
+
         for key, value in user_config.items():
             if isinstance(value, dict) and key in config and isinstance(config[key], dict):
-                config[key].update(value)   # shallow-merge nested dicts (e.g. manual_floorplan)
+                config[key].update(value)
             else:
                 config[key] = value
     else:
-        print(f"  No {json_path} found — using built-in defaults")
+        print("No config file found. Using default config.")
+
+    # ======================================================
+    # ARYA UPDATE V4:
+    # Convert all important paths to absolute paths internally.
+    # This helps Python find files correctly on Windows/WSL.
+    # TCL output will still be converted back to relative paths.
+    # ======================================================
+    for key in ["verilog_file", "lib_file", "tech_lef_file", "lef_file", "output_dir"]:
+        config[key] = project_path(config[key])
+
     return config
 
-# Keywords that are NOT cell instances
+
 SKIP_KEYWORDS = {
-    'module', 'endmodule', 'input', 'output', 'inout',
-    'wire', 'reg', 'logic', 'assign', 'always', 'begin',
-    'end', 'if', 'else', 'case', 'endcase', 'generate',
-    'endgenerate', 'for', 'genvar', 'parameter', 'localparam',
-    'function', 'task', 'initial', 'posedge', 'negedge',
-    'integer', 'signed', 'unsigned', 'default', 'forever',
-    'begin', 'end', 'wire', 'reg', 'logic', 'assign',
-    'genvar', 'generate', 'endgenerate'
+    "module", "endmodule", "input", "output", "inout",
+    "wire", "reg", "logic", "assign", "always", "begin",
+    "end", "if", "else", "case", "endcase", "generate",
+    "endgenerate", "for", "genvar", "parameter", "localparam",
+    "function", "task", "initial", "posedge", "negedge",
+    "integer", "signed", "unsigned", "default"
 }
 
-# ─────────────────────────────────────────────────────────────
-# STEP 1: CLEAN VERILOG (remove comments)
-# ─────────────────────────────────────────────────────────────
+
 def clean_verilog(content):
-    """Remove ALL comments from Verilog"""
-    # Remove single line comments: // ...
-    content = re.sub(r'//[^\n]*\n', '\n', content)
-    # Remove multi-line comments: /* ... */
-    content = re.sub(r'/\*.*?\*/', ' ', content, flags=re.DOTALL)
+    """Remove single-line and multi-line Verilog comments."""
+    content = re.sub(r"//[^\n]*\n", "\n", content)
+    content = re.sub(r"/\*.*?\*/", " ", content, flags=re.DOTALL)
     return content
 
-# ─────────────────────────────────────────────────────────────
-# STEP 2: PARSE VERILOG
-# ─────────────────────────────────────────────────────────────
-def parse_verilog(verilog_file):
-    """Parse Verilog by splitting on endmodule"""
-    print(f"\n{'='*55}")
-    print(f"  PARSING VERILOG: {verilog_file}")
-    print(f"{'='*55}")
 
-    with open(verilog_file, 'r') as f:
+def count_cells(body):
+    """Count standard-cell instances inside a module body."""
+    counts = {}
+    pattern = re.compile(
+        r"^\s*([A-Za-z_][A-Za-z0-9_$]*)\s+"
+        r"([A-Za-z_][A-Za-z0-9_$\[\]]*)\s*\(",
+        re.MULTILINE
+    )
+
+    for match in pattern.finditer(body):
+        cell_type = match.group(1)
+        if cell_type.lower() not in SKIP_KEYWORDS:
+            counts[cell_type] = counts.get(cell_type, 0) + 1
+
+    return counts
+
+
+def parse_verilog(verilog_file):
+    """Parse gate-level Verilog and extract module contents."""
+    print("\n=======================================================")
+    print("PARSING VERILOG:", verilog_file)
+    print("=======================================================")
+
+    if not os.path.exists(verilog_file):
+        raise FileNotFoundError("Verilog file not found: " + verilog_file)
+
+    with open(verilog_file, "r") as f:
         raw = f.read()
 
     clean = clean_verilog(raw)
+    chunks = re.split(r"\bendmodule\b", clean)
 
-    print(f"  Raw size   : {len(raw)} chars")
-    print(f"  Clean size : {len(clean)} chars")
-
-    # ── Split into chunks by endmodule ──
-    chunks = re.split(r'\bendmodule\b', clean)
-
-    print(f"  Chunks found (= number of modules): {len(chunks)-1}")
-
-    module_names    = []
+    module_names = []
     module_contents = {}
     cell_counts_per_module = {}
 
@@ -142,558 +215,350 @@ def parse_verilog(verilog_file):
         if not chunk:
             continue
 
-        # Find 'module NAME (' inside this chunk
-        mod_header = re.search(
-            r'\bmodule\s+([A-Za-z_][A-Za-z0-9_$]*)\s*'
-            r'(?:#\s*$[^)]*$)?\s*$([^;]*)$\s*;',  # Match module name and ports
+        header = re.search(
+            r"\bmodule\s+([A-Za-z_][A-Za-z0-9_$]*)\s*"
+            r"(?:#\s*\([^)]*\))?\s*\((.*?)\)\s*;",
             chunk,
             re.DOTALL
         )
 
-        if not mod_header:
-            # Try simpler pattern
-            mod_header = re.search(
-                r'\bmodule\s+([A-Za-z_][A-Za-z0-9_$]*)', # Match module name only
-                chunk
-            )
-            if not mod_header:
+        if not header:
+            header = re.search(r"\bmodule\s+([A-Za-z_][A-Za-z0-9_$]*)", chunk)
+            if not header:
                 continue
-            mod_name = mod_header.group(1)
-            mod_ports = ""
-            body_start = mod_header.end()
+            module_name = header.group(1)
+            ports = ""
+            body_start = header.end()
         else:
-            mod_name  = mod_header.group(1)
-            mod_ports = mod_header.group(2).strip()
-            body_start = mod_header.end()
+            module_name = header.group(1)
+            ports = header.group(2).strip()
+            body_start = header.end()
 
-        # Everything after port list = body
-        mod_body = chunk[body_start:].strip()
+        body = chunk[body_start:].strip()
 
-        print(f"\n  📦 Found module: '{mod_name}'")
-        print(f"     Ports (first 80): {mod_ports[:80]}")
-        print(f"     Body  (first 80): {mod_body[:80]}")
-
-        module_names.append(mod_name)
-        module_contents[mod_name] = {
-            "ports": mod_ports,
-            "body" : mod_body,
-            "raw_chunk": chunk
+        module_names.append(module_name)
+        module_contents[module_name] = {
+            "ports": ports,
+            "body": body
         }
 
-        # ── Count cell instances in body ──
-        cell_counts = count_cells(mod_body)
-        cell_counts_per_module[mod_name] = cell_counts
+        cell_counts_per_module[module_name] = count_cells(body)
 
-        if cell_counts:
-            print(f"     Cells:")
-            for cname, cnt in cell_counts.items():
-                print(f"       {cname:25s} × {cnt}")
+        print("Found module:", module_name)
+        if cell_counts_per_module[module_name]:
+            print("  Cell counts:", cell_counts_per_module[module_name])
         else:
-            print(f"     No standard cell instances found")
-
-    print(f"\n  ── Summary ──")
-    print(f"  Modules found: {module_names}")
+            print("  No standard cells found")
 
     return module_names, module_contents, cell_counts_per_module
 
-# ─────────────────────────────────────────────────────────────
-# HELPER: Count Cells in Module Body
-# ─────────────────────────────────────────────────────────────
-def count_cells(body):
-    """
-    Count standard cell instances in module body.
-    Pattern: CELLNAME INSTANCENAME (
-    e.g.  full_adder fa0 (.a(a[0]), ...)
-    """
-    cell_counts = {}
 
-    # Pattern: word (
-    # This matches: full_adder fa0 (
-    pattern = re.compile(
-        r'^\s*([A-Za-z_][A-Za-z0-9_$]*)\s+'
-        r'([A-Za-z_][A-Za-z0-9_$\[\]]*)\s*\(',
-        re.MULTILINE
-    )
-
-    for m in pattern.finditer(body):
-        cell_type = m.group(1)
-        inst_name = m.group(2)
-        
-        # Skip keywords
-        if cell_type.lower() not in SKIP_KEYWORDS:
-            cell_counts[cell_type] = cell_counts.get(cell_type, 0) + 1
-
-    return cell_counts
-
-# ─────────────────────────────────────────────────────────────
-# STEP 3: READ LIB FILE
-# ─────────────────────────────────────────────────────────────
 def get_cell_area_from_lib(lib_file):
-    """Read LIB file for cell areas"""
-    print(f"\n{'='*55}")
-    print(f"  READING LIB: {lib_file}")
-    print(f"{'='*55}")
+    """Extract cell area from Liberty file."""
+    print("\nReading LIB:", lib_file)
 
-    cell_areas = {}
+    if not os.path.exists(lib_file):
+        raise FileNotFoundError("LIB file not found: " + lib_file)
 
-    with open(lib_file, 'r') as f:
+    with open(lib_file, "r") as f:
         content = f.read()
 
-    # Remove comments first (/* ... */)
-    content = re.sub(r'/\*.*?\*/', ' ', content, flags=re.DOTALL)
+    content = re.sub(r"/\*.*?\*/", " ", content, flags=re.DOTALL)
 
-    # Find cell blocks - pattern: cell ( "CELLNAME" ) { ... }
-    # so it will fetch patterns like this in gate level netlist INV_X1 _133_ (NAND2_X1 _144_ (
-    cell_starts = []
-    for m in re.finditer(
-        r'\bcell\s*\(\s*["\']?([A-Za-z_][A-Za-z0-9_]*)["\']?\s*\)',  # (cell_name, position_in_file)
+    cell_areas = {}
+    cells = list(re.finditer(
+        r"\bcell\s*\(\s*[\"\']?([A-Za-z_][A-Za-z0-9_]*)[\"\']?\s*\)",
         content
-    ):
-        cell_starts.append((m.group(1), m.end()))
+    ))
 
-    print(f"  Found {len(cell_starts)} cell definitions")
-
-    for i, (cname, start) in enumerate(cell_starts):
-
-        end = cell_starts[i+1][1] if i+1 < len(cell_starts) else len(content)
+    for i, cell in enumerate(cells):
+        name = cell.group(1)
+        start = cell.end()
+        end = cells[i + 1].start() if i + 1 < len(cells) else len(content)
         body = content[start:end]
 
-        # Find area - pattern: area : VALUE ;
-        area_m = re.search(r'\barea\s*:\s*([\d.]+)\s*;', body)
-        if area_m:
-            area = float(area_m.group(1))
-            cell_areas[cname] = area
-            print(f"  {cname:25s} → {area:.6f} um²")
-        else:
-            # Try alternative: area : VALUE ;
-            area_m = re.search(r'area\s*:\s*([\d.]+)', body)
-            if area_m:
-                area = float(area_m.group(1))
-                cell_areas[cname] = area
-                print(f"  {cname:25s} → {area:.6f} um² (alt)")
+        area_match = re.search(r"\barea\s*:\s*([\d.]+)\s*;", body)
+        if area_match:
+            cell_areas[name] = float(area_match.group(1))
 
-    if not cell_areas:
-        print(f"  No areas found in LIB!")
-        print(f"  → Using LEF file for area (SIZE W BY H)")
-
+    print("Cell areas from LIB:", len(cell_areas))
     return cell_areas
 
-# ─────────────────────────────────────────────────────────────
-# STEP 4: READ LEF FILE (Backup for Area)
-# ─────────────────────────────────────────────────────────────
+
 def get_cell_area_from_lef(lef_file):
-    """Read LEF file for cell areas (SIZE W BY H)"""
-    print(f"\n{'='*55}")
-    print(f"  READING LEF: {lef_file}")
-    print(f"{'='*55}")
+    """Fallback: extract cell area from LEF SIZE statements."""
+    print("\nReading LEF:", lef_file)
 
-    cell_areas = {}
+    if not os.path.exists(lef_file):
+        raise FileNotFoundError("LEF file not found: " + lef_file)
 
-    with open(lef_file, 'r') as f:
+    with open(lef_file, "r") as f:
         content = f.read()
 
-    # Remove comments first (# ...)
-    content = re.sub(r'#.*?\n', '\n', content)
-
-    # Pattern: MACRO CELLNAME ... SIZE W BY H
-    macro_pattern = re.compile(
-        r'MACRO\s+([A-Za-z_][A-Za-z0-9_]*)'
-        r'.*?SIZE\s+([\d.]+)\s+BY\s+([\d.]+)',
+    cell_areas = {}
+    pattern = re.compile(
+        r"MACRO\s+([A-Za-z_][A-Za-z0-9_]*)"
+        r".*?SIZE\s+([\d.]+)\s+BY\s+([\d.]+)",
         re.DOTALL
     )
 
-    matches = list(macro_pattern.finditer(content))
-    print(f"  Found {len(matches)} MACRO definitions")
+    for match in pattern.finditer(content):
+        name = match.group(1)
+        width = float(match.group(2))
+        height = float(match.group(3))
+        cell_areas[name] = width * height
 
-    for m in matches:
-        cell_name = m.group(1)
-        width     = float(m.group(2))
-        height    = float(m.group(3))
-        area      = width * height
-        cell_areas[cell_name] = area
-        print(f"  {cell_name:25s} → {width:.3f} × {height:.3f}"
-              f" = {area:.6f} um²")
-
-    if not cell_areas:
-        print(f"   No MACRO SIZE found in LEF!")
-        print(f"  → Will use default area = 0.1 um²")
-
+    print("Cell areas from LEF:", len(cell_areas))
     return cell_areas
 
-# ─────────────────────────────────────────────────────────────
-# STEP 5: CALCULATE MODULE AREA
-# For each cell type in the module, it looks up that cell's area from the .lib-derived dictionary (falling back to a default of 0.1 µm² 
-# for any unrecognized cell type — shouldn't happen once the LIB parse works: refer the function get_cell_area_from_lef()), multiplies by how many instances the module has, and sums it all. 
-# Then it inflates the raw cell area by 30% as a rough allowance for routing/interconnect overhead — real chip area is always bigger than the sum of 
-# gate footprints because of wiring and spacing.
-#
-# For your adder: Σ(count × area) = 193.914 µm² → × 1.3 = 252.09 µm². 
-# Same for multiplier: 63 × 1.064 = 67.03 µm² → × 1.3 = 87.14 µm².
-# ─────────────────────────────────────────────────────────────
+
 def calculate_area(cell_counts, cell_areas, default=0.1):
-    """Total area = Σ (count × area) + 30% routing overhead"""
-    total = 0.0
+    """
+    Area estimate = sum(cell_count * cell_area) + 30% routing overhead.
+    This is used only for automatic partition region estimation.
+    """
+    area = 0.0
     for cell, count in cell_counts.items():
-        total += count * cell_areas.get(cell, default)
-    return total * 1.3  # +30% routing overhead
+        area += count * cell_areas.get(cell, default)
+    return area * 1.3
 
-# ─────────────────────────────────────────────────────────────
-# STEP 6: EXTRACT MODULE TO FILE
-# ─────────────────────────────────────────────────────────────
-def extract_module_to_file(module_contents, module_name,
-                            output_path):
-    """Write a single module to a .v file"""
 
-    print(f"  Extracting '{module_name}'...")
-
+def extract_module_to_file(module_contents, module_name, output_path):
+    """Write one module into a separate Verilog file."""
     if module_name not in module_contents:
-        print(f"\n  '{module_name}' not found!")
-        print(f"  Available: {list(module_contents.keys())}")
-        raise ValueError(f"Module '{module_name}' not found")
+        raise ValueError(f"Module {module_name} not found")
 
-    mod   = module_contents[module_name]
-    ports = mod["ports"]
-    body  = mod["body"]
+    mod = module_contents[module_name]
 
-    with open(output_path, 'w') as f:
-        f.write(f"// Auto-extracted by split_net.py\n")
+    with open(output_path, "w") as f:
+        f.write("// Auto-extracted by split_net_v2_arya.py\n")
         f.write(f"// Module: {module_name}\n\n")
         f.write(f"module {module_name} (\n")
-        f.write(f"    {ports}\n")
-        f.write(f");\n\n")
-        f.write(body)
-        f.write(f"\nendmodule\n")
+        f.write("    " + mod["ports"] + "\n")
+        f.write(");\n\n")
+        f.write(mod["body"])
+        f.write("\nendmodule\n")
 
-    print(f"  Written → {output_path}")
+    print("Generated Verilog:", output_path)
 
-# ─────────────────────────────────────────────────────────────
-# STEP 7: GENERATE TCL SCRIPT
-# ─────────────────────────────────────────────────────────────
+
 def generate_tcl(config, block_name, verilog_path, output_dir, own_region, blocked_region):
-    """Generate OpenROAD TCL script"""
+    """Generate OpenROAD TCL script for one partition."""
+    reports_dir = os.path.join(output_dir, "reports")
+    results_dir = os.path.join(output_dir, "results")
+    os.makedirs(reports_dir, exist_ok=True)
+    os.makedirs(results_dir, exist_ok=True)
 
-    os.makedirs(os.path.join(output_dir, "reports"), exist_ok=True)
-    os.makedirs(os.path.join(output_dir, "results"),  exist_ok=True)
+    tcl_file_path = os.path.join(output_dir, f"{block_name}_flow.tcl")
 
-    tcl_path = os.path.join(output_dir, f"{block_name}_flow.tcl")
+    # ======================================================
+    # ARYA UPDATE V7:
+    # Use relative TCL paths so generated TCL does not contain
+    # Windows-style C:\\ paths. This is important because
+    # OpenROAD usually runs in Linux/WSL/Docker.
+    # ======================================================
+    tech_lef_tcl = tcl_path(config["tech_lef_file"])
+    lef_tcl = tcl_path(config["lef_file"])
+    lib_tcl = tcl_path(config["lib_file"])
+    verilog_tcl = tcl_path(verilog_path)
+    reports_tcl = tcl_path(reports_dir)
+    results_tcl = tcl_path(results_dir)
 
-    # Get absolute path for verilog
-    verilog_abs = os.path.abspath(verilog_path)
+    with open(tcl_file_path, "w") as f:
+        f.write("# OpenROAD TCL generated by split_net_v2_arya.py\n")
+        f.write(f"# Block: {block_name}\n")
+        f.write("# ARYA UPDATE V7: Uses project-relative Linux-friendly paths.\n\n")
 
-    with open(tcl_path, 'w') as f:
-        f.write(f"# ─────────────────────────────────────────────\n")
-        f.write(f"# OpenROAD TCL Script Made by Sayak\n")
-        f.write(f"# Block    : {block_name}\n")
-        f.write(f"# Generated: by split_net.py\n")
-        f.write(f"# ─────────────────────────────────────────────\n\n")
+        f.write("# Read Nangate technology files\n")
+        f.write(f"read_lef     {tech_lef_tcl}\n")
+        f.write(f"read_lef     {lef_tcl}\n")
+        f.write(f"read_liberty {lib_tcl}\n\n")
 
-        f.write(f"# === Read technology files ===\n")
-        f.write(f"read_lef     {os.path.abspath(config['tech_lef_file'])}\n")
-        f.write(f"read_lef     {os.path.abspath(config['lef_file'])}\n")
-        f.write(f"read_liberty {os.path.abspath(config['lib_file'])}\n\n")
-
-        f.write(f"# === Read gate-level netlist ===\n")
-        f.write(f"read_verilog {verilog_abs}\n")
+        f.write("# Read gate-level netlist\n")
+        f.write(f"read_verilog {verilog_tcl}\n")
         f.write(f"link_design  {block_name}\n\n")
 
-        f.write(f"# === Floorplan (block's actual chip-coordinate region) ===\n")
-        f.write(f"initialize_floorplan \\\n")
-        f.write(f"  -die_area  \"{own_region['llx_um']} {own_region['lly_um']} "
-                f"{own_region['urx_um']} {own_region['ury_um']}\" \\\n")
-        f.write(f"  -core_area \"{own_region['llx_um']+config['margin']} "
-                f"{own_region['lly_um']+config['margin']} "
-                f"{own_region['urx_um']-config['margin']} "
-                f"{own_region['ury_um']-config['margin']}\" \\\n")
+        f.write("# Floorplan region for this block\n")
+        f.write("initialize_floorplan \\\n")
+        f.write(
+            f"  -die_area  \"{own_region['llx_um']} {own_region['lly_um']} "
+            f"{own_region['urx_um']} {own_region['ury_um']}\" \\\n"
+        )
+        f.write(
+            f"  -core_area \"{own_region['llx_um'] + config['margin']} "
+            f"{own_region['lly_um'] + config['margin']} "
+            f"{own_region['urx_um'] - config['margin']} "
+            f"{own_region['ury_um'] - config['margin']}\" \\\n"
+        )
         f.write(f"  -site      {config['site']}\n\n")
 
-        f.write(f"# === Block sibling region (cannot be placed into) ===\n")
-        f.write(f"create_blockage -bbox {{{blocked_region['llx_um']} {blocked_region['lly_um']} "
-                f"{blocked_region['urx_um']} {blocked_region['ury_um']}}} "
-                f"-type placement -name blockage_{block_name}\n\n")
+        # ======================================================
+        # ARYA UPDATE V9:
+        # Disabled create_blockage because this OpenROAD version
+        # does not support the command:
+        # create_blockage -bbox ...
+        #
+        # The floorplan region is still controlled by:
+        # initialize_floorplan -die_area and -core_area.
+        # ======================================================
+        f.write("# Blockage command disabled: unsupported in this OpenROAD version\n")
+        f.write(
+            f"# create_blockage -bbox {{{blocked_region['llx_um']} {blocked_region['lly_um']} "
+            f"{blocked_region['urx_um']} {blocked_region['ury_um']}}} "
+            f"-type placement -name blockage_{block_name}\n\n"
+        )
 
-        f.write(f"# === Initialize routing tracks ===\n")
-        f.write(f"make_tracks\n\n")
+        f.write("make_tracks\n")
+        # ======================================================
+# ARYA UPDATE V10:
+# Use Metal3/Metal4 for IO pin placement.
+#
+# Reason:
+# Metal1/Metal2 pin placement caused detailed routing
+# failure (DRT-0255: Maze Route cannot find path).
+#
+# Using higher routing layers provides more routing
+# resources and avoids congestion near the cell rows.
+# ======================================================
+        f.write("place_pins -hor_layers metal3 -ver_layers metal4\n")
+        f.write(f"global_placement -density {config['utilization']}\n")
+        f.write("detailed_placement\n")
+        f.write("check_placement -verbose\n\n")
 
-        f.write(f"# === Pin placement ===\n")
-        f.write(f"place_pins -hor_layers metal1 -ver_layers metal2\n\n")
+        f.write("filler_placement \"FILLCELL_X8 FILLCELL_X4 FILLCELL_X2 FILLCELL_X1\"\n")
+        f.write("global_route\n")
+        f.write(f"detailed_route -output_drc {reports_tcl}/{block_name}.drc\n\n")
 
-        f.write(f"# === Global placement ===\n")
-        f.write(f"global_placement -density {config['utilization']}\n\n")
+        f.write("report_design_area\n")
+        f.write("report_wns\n")
+        f.write("report_tns\n\n")
 
-        f.write(f"# === Detailed placement ===\n")
-        f.write(f"detailed_placement\n")
-        f.write(f"check_placement -verbose\n\n")
+        f.write(f"write_def {results_tcl}/{block_name}_placed_routed.def\n")
 
-        f.write(f"# === Filler cells ===\n")
-        f.write(f"filler_placement "
-                f"\"FILLCELL_X8 FILLCELL_X4 "
-                f"FILLCELL_X2 FILLCELL_X1\"\n\n")
+    print("Generated TCL:", tcl_file_path)
+    return tcl_file_path
 
-        f.write(f"# === Route ===\n")
-        f.write(f"global_route\n")
-        f.write(f"detailed_route "
-                f"-output_drc reports/{block_name}.drc\n\n")
 
-        f.write(f"# === Reports ===\n")
-        f.write(f"report_design_area\n")
-        f.write(f"report_wns\n")
-        f.write(f"report_tns\n\n")
-
-        f.write(f"# === Export layout ===\n")
-        f.write(f"write_def results/{block_name}_placed_routed.def\n")
-
-    print(f"  TCL → {tcl_path}")
-    return tcl_path
-
-# ─────────────────────────────────────────────────────────────
-# MAIN FUNCTION
-# ─────────────────────────────────────────────────────────────
 def split_design(config):
+    module_names, module_contents, cell_counts = parse_verilog(config["verilog_file"])
 
-    # ── 1. Parse ──
-    module_names, module_contents, cell_counts_per_module = \
-        parse_verilog(config["verilog_file"])
-
-    # ── 2. Validate ──
     adder_name = config["adder_module"]
-    mult_name  = config["multiplier_module"]
-
-    print(f"\n{'='*55}")
-    print(f"  CHECKING MODULES")
-    print(f"{'='*55}")
-    print(f"  Looking for  : '{adder_name}' and '{mult_name}'")
-    print(f"  Found        : {module_names}")
+    mult_name = config["multiplier_module"]
 
     if adder_name not in module_contents:
-        print(f"\n   '{adder_name}' NOT FOUND!")
-        print(f"  → Change 'adder_module' in CONFIG to one of:")
-        for m in module_names: print(f"     '{m}'")
-        raise SystemExit(1)
-
+        raise SystemExit(f"Adder module {adder_name} not found")
     if mult_name not in module_contents:
-        print(f"\n   '{mult_name}' NOT FOUND!")
-        print(f"  → Change 'multiplier_module' in CONFIG to one of:")
-        for m in module_names: print(f"     '{m}'")
-        raise SystemExit(1)
+        raise SystemExit(f"Multiplier module {mult_name} not found")
 
-    print(f" Both modules found!")
-
-    # ── 3. Read Areas ──
     cell_areas = get_cell_area_from_lib(config["lib_file"])
-
-    # Fallback to LEF if LIB didn't yield areas
     if not cell_areas:
         cell_areas = get_cell_area_from_lef(config["lef_file"])
 
-    # ── 4. Calculate Areas ──
-    print(f"\n{'='*55}")
-    print(f"  AREA CALCULATION")
-    print(f"{'='*55}")
-
-    adder_counts = cell_counts_per_module.get(adder_name, {})
-    mult_counts  = cell_counts_per_module.get(mult_name,  {})
-
-    adder_area = calculate_area(adder_counts, cell_areas)
-    mult_area  = calculate_area(mult_counts,  cell_areas)
+    adder_area = calculate_area(cell_counts.get(adder_name, {}), cell_areas)
+    mult_area = calculate_area(cell_counts.get(mult_name, {}), cell_areas)
     total_area = adder_area + mult_area
 
-    print(f"  Adder cells  : {dict(adder_counts)}")
-    print(f"  Mult  cells  : {dict(mult_counts)}")
-    print(f"  Adder area   : {adder_area:.4f} um²")
-    print(f"  Mult  area   : {mult_area:.4f} um²")
+    split_ratio = 0.5 if total_area == 0 else adder_area / total_area
 
-    # Fallback: use cell count ratio if areas = 0
-    if total_area == 0:
-        print(f"    Areas = 0, using cell count ratio")
-        ac = max(sum(adder_counts.values()), 1)
-        mc = max(sum(mult_counts.values()),  1)
-        split_ratio = ac / (ac + mc)
-        adder_area  = ac * 0.1
-        mult_area   = mc * 0.1
-        total_area  = adder_area + mult_area
-    else:
-        split_ratio = adder_area / total_area
+    print("\nArea estimate:")
+    print("  Adder:", adder_area, "um²")
+    print("  Multiplier:", mult_area, "um²")
+    print("  Split ratio:", split_ratio)
 
-    print(f"  Split ratio  : {split_ratio:.4f}")
-    print(f"  Adder gets   : {split_ratio*100:.1f}% of chip")
-    print(f"  Mult  gets   : {(1-split_ratio)*100:.1f}% of chip")
-
-    # ── 5. Calculate Regions ── <Not useful now>
-    #split_x = round(config["chip_width"] * split_ratio, 3)
-
-    #adder_region = {
-    #   "llx_um": 0.0,          "lly_um": 0.0,
-    #    "urx_um": split_x,      "ury_um": config["chip_height"]
-    #}
-    #mult_region = {
-    #    "llx_um": split_x,      "lly_um": 0.0,
-    #    "urx_um": config["chip_width"], "ury_um": config["chip_height"]
-    #}
-
-    #print(f"\n  Adder region : (0, 0) → ({split_x}, {config['chip_height']})")
-    #print(f"  Mult  region : ({split_x}, 0) → ({config['chip_width']}, {config['chip_height']})")
-
-    #----------------------- Sayak ------------------------
-    # ── 5. Calculate Regions ──
     if config["manual_floorplan"]["enable"]:
-        print(f"\n   Using MANUAL floorplan from config.json (area-based split ignored)")
-
-        mf = config["manual_floorplan"]
-        missing = [name for name in (adder_name, mult_name) if name not in mf]
-        if missing:
-            print(f"\n  manual_floorplan is enabled but missing region(s) for: {missing}")
-            print(f"     'adder_module' = '{adder_name}'")
-            print(f"     'multiplier_module' = '{mult_name}'")
-            print(f"  → manual_floorplan keys in config.json must match these exactly.")
-            print(f"     Current manual_floorplan keys: {[k for k in mf.keys() if k != 'enable']}")
-            raise SystemExit(1)
-
-        required_fields = {"llx_um", "lly_um", "urx_um", "ury_um"}
-        for name in (adder_name, mult_name):
-            missing_fields = required_fields - set(mf[name].keys())
-            if missing_fields:
-                print(f"\n  manual_floorplan['{name}'] is missing field(s): {missing_fields}")
-                raise SystemExit(1)
-
-        adder_region = mf[adder_name]
-        mult_region  = mf[mult_name]
-
-        if not (adder_region["urx_um"] <= mult_region["llx_um"] or
-                mult_region["urx_um"] <= adder_region["llx_um"] or
-                adder_region["ury_um"] <= mult_region["lly_um"] or
-                mult_region["ury_um"] <= adder_region["lly_um"]):
-            print(f"\n   WARNING: adder_region and multiplier_region appear to OVERLAP!")
-            print(f"     Adder : {adder_region}")
-            print(f"     Mult  : {mult_region}")
-
-        for name, region in [(adder_name, adder_region), (mult_name, mult_region)]:
-            if (region["urx_um"] > config["chip_width"] or
-                region["ury_um"] > config["chip_height"] or
-                region["llx_um"] < 0 or region["lly_um"] < 0):
-                print(f"\n   WARNING: region for '{name}' extends outside "
-                      f"the {config['chip_width']}×{config['chip_height']} chip!")
-                print(f"     Region: {region}")
-
-        split_x = adder_region["urx_um"]
+        print("\nUsing manual floorplan from config.json")
+        adder_region = config["manual_floorplan"][adder_name]
+        mult_region = config["manual_floorplan"][mult_name]
     else:
+        print("\nUsing automatic area-based floorplan")
         split_x = round(config["chip_width"] * split_ratio, 3)
         adder_region = {
-            "llx_um": 0.0,          "lly_um": 0.0,
-            "urx_um": split_x,      "ury_um": config["chip_height"]
+            "llx_um": 0.0,
+            "lly_um": 0.0,
+            "urx_um": split_x,
+            "ury_um": config["chip_height"]
         }
         mult_region = {
-            "llx_um": split_x,      "lly_um": 0.0,
-            "urx_um": config["chip_width"], "ury_um": config["chip_height"]
+            "llx_um": split_x,
+            "lly_um": 0.0,
+            "urx_um": config["chip_width"],
+            "ury_um": config["chip_height"]
         }
 
+    print("Adder region:", adder_region)
+    print("Multiplier region:", mult_region)
 
-    print(f"\n  Adder region : ({adder_region['llx_um']}, {adder_region['lly_um']}) → ({adder_region['urx_um']}, {adder_region['ury_um']})")
-    print(f"  Mult  region : ({mult_region['llx_um']}, {mult_region['lly_um']}) → ({mult_region['urx_um']}, {mult_region['ury_um']})")
+    os.makedirs(config["output_dir"], exist_ok=True)
 
-    # ── Cross-check: manual floorplan vs. area-based estimate ──
-    if config["manual_floorplan"]["enable"]:
-        adder_manual_area = (adder_region["urx_um"] - adder_region["llx_um"]) * \
-                             (adder_region["ury_um"] - adder_region["lly_um"])
-        mult_manual_area  = (mult_region["urx_um"]  - mult_region["llx_um"])  * \
-                             (mult_region["ury_um"]  - mult_region["lly_um"])
-        manual_split_ratio = adder_manual_area / (adder_manual_area + mult_manual_area)
-
-        print(f"\n Manual vs. area-estimate check:")
-        print(f"     Manual split   : adder = {manual_split_ratio*100:.1f}%  "
-              f"mult = {(1-manual_split_ratio)*100:.1f}%")
-        print(f"     Area estimate  : adder = {split_ratio*100:.1f}%  "
-              f"mult = {(1-split_ratio)*100:.1f}%")
-
-        deviation = abs(manual_split_ratio - split_ratio) * 100
-        if deviation > 10:
-            print(f" Manual split gives adder {manual_split_ratio*100:.1f}%, "
-                  f"but area estimate suggests {split_ratio*100:.1f}% "
-                  f"— consider adjusting (deviation: {deviation:.1f} pts)")
-        else:
-            print(f" Within {deviation:.1f} pts of area estimate — looks reasonable")
-
-
-    # ── 6. Create Dirs ──
     adder_dir = os.path.join(config["output_dir"], "adder")
-    mult_dir  = os.path.join(config["output_dir"], "multiplier")
+    mult_dir = os.path.join(config["output_dir"], "multiplier")
     os.makedirs(adder_dir, exist_ok=True)
-    os.makedirs(mult_dir,  exist_ok=True)
-
-    # ── 7. Extract Verilog ──
-    print(f"\n{'='*55}")
-    print(f"  EXTRACTING MODULES")
-    print(f"{'='*55}")
+    os.makedirs(mult_dir, exist_ok=True)
 
     adder_v = os.path.join(adder_dir, "adder.v")
-    mult_v  = os.path.join(mult_dir,  "multiplier.v")
+    mult_v = os.path.join(mult_dir, "multiplier.v")
 
     extract_module_to_file(module_contents, adder_name, adder_v)
-    extract_module_to_file(module_contents, mult_name,  mult_v)
+    extract_module_to_file(module_contents, mult_name, mult_v)
 
-    # ── 8. Generate TCL ──
-    print(f"\n{'='*55}")
-    print(f"  GENERATING TCL SCRIPTS")
-    print(f"{'='*55}")
+    adder_tcl = generate_tcl(config, adder_name, adder_v, adder_dir, adder_region, mult_region)
+    mult_tcl = generate_tcl(config, mult_name, mult_v, mult_dir, mult_region, adder_region)
 
-    generate_tcl(config, adder_name, adder_v, adder_dir, adder_region, mult_region)
-    generate_tcl(config, mult_name,  mult_v,  mult_dir,  mult_region,  adder_region)
-
-    # ── 9. Save JSON ──
     partition_info = {
-        "chip_dimensions"  : {
-            "width_um"      : config["chip_width"],
-            "height_um"     : config["chip_height"],
+        "chip_dimensions": {
+            "width_um": config["chip_width"],
+            "height_um": config["chip_height"],
             "dbu_per_micron": config["dbu_per_micron"]
         },
-        "modules"          : {
-            "adder"     : adder_name,
+        "modules": {
+            "adder": adder_name,
             "multiplier": mult_name
         },
-        "area_estimation"  : {
-            "adder"      : {
-                "cell_counts"       : adder_counts,
+        "area_estimation": {
+            "adder": {
+                "cell_counts": cell_counts.get(adder_name, {}),
                 "estimated_area_um2": adder_area
             },
-            "multiplier" : {
-                "cell_counts"       : mult_counts,
+            "multiplier": {
+                "cell_counts": cell_counts.get(mult_name, {}),
                 "estimated_area_um2": mult_area
             }
         },
-        "partition"        : {
-            "split_ratio"       : split_ratio,
-            "split_direction"   : "vertical",
-            "adder_region"      : adder_region,
-            "multiplier_region" : mult_region
+        "partition": {
+            "split_ratio": split_ratio,
+            "split_direction": "vertical",
+            "adder_region": adder_region,
+            "multiplier_region": mult_region
         },
-        "files"            : {
-            "adder_verilog": adder_v,
-            "mult_verilog" : mult_v,
-            "adder_tcl"    : f"{adder_dir}/{adder_name}_flow.tcl",
-            "mult_tcl"     : f"{mult_dir}/{mult_name}_flow.tcl"
+        "files": {
+            "adder_verilog": tcl_path(adder_v),
+            "mult_verilog": tcl_path(mult_v),
+            "adder_tcl": tcl_path(adder_tcl),
+            "mult_tcl": tcl_path(mult_tcl)
         }
     }
 
     json_path = os.path.join(config["output_dir"], "partition_info.json")
-    with open(json_path, 'w') as f:
+    with open(json_path, "w") as f:
         json.dump(partition_info, f, indent=2)
 
-    # ── 10. Summary ──
-    print(f"\n{'='*55}")
-    print(f"   SPLIT COMPLETE!")
-    print(f"{'='*55}")
-    print(f"  Adder  Verilog → {adder_v}")
-    print(f"  Mult   Verilog → {mult_v}")
-    print(f"  Adder  TCL    → {adder_dir}/{adder_name}_flow.tcl")
-    print(f"  Mult   TCL    → {mult_dir}/{mult_name}_flow.tcl")
-    print(f"  JSON          → {json_path}")
-    print(f"{'='*55}\n")
+    print("\nSPLIT COMPLETE")
+    print("Adder Verilog:", adder_v)
+    print("Multiplier Verilog:", mult_v)
+    print("Adder TCL:", adder_tcl)
+    print("Multiplier TCL:", mult_tcl)
+    print("Partition JSON:", json_path)
 
-
-#if __name__ == "__main__":
-#   split_design(CONFIG)
 
 if __name__ == "__main__":
-    import sys
-    json_path = sys.argv[1] if len(sys.argv) > 1 else "config.json"
+    # ======================================================
+    # ARYA UPDATE V8:
+    # Run with:
+    # python scripts/split_net_v2_arya.py
+    #
+    # Or with custom config:
+    # python scripts/split_net_v2_arya.py configs/config.json
+    # ======================================================
+    json_path = sys.argv[1] if len(sys.argv) > 1 else None
     config = load_config(json_path)
     split_design(config)
