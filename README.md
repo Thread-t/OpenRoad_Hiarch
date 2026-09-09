@@ -1,26 +1,24 @@
-╔════════════════════════════════════════════════════════════╗
-║     NETLIST PARTITIONING & OPENROAD FLOORPLAN GENERATOR    ║
-╚════════════════════════════════════════════════════════════╝
+# Netlist Partitioning & OpenROAD Floorplan Generator
 
-A Python flow for partitioning gate-level Verilog designs and generating
-configurable OpenROAD floorplanning and implementation scripts.
+A Python-based flow for partitioning gate-level Verilog designs and generating configurable **OpenROAD floorplanning and implementation scripts**.
 
-Author: Sayak Deb
+**Author:** Sayak Deb
 
-✨ FEATURES
-───────────
-• Gate-level Verilog parsing and module partitioning
-• Liberty/LEF-based area estimation
-• Automatic or manual floorplanning
-• Floorplan boundary and overlap validation
-• OpenROAD TCL generation
-• Top-level wrapper generation
-• Block-specific placement/routing settings
-• Metal3/Metal4 pin placement
-• Partition metadata and summaries
+## Features
 
-📁 PROJECT STRUCTURE
-────────────────────
+* Gate-level Verilog parsing and module partitioning
+* Liberty/LEF-based area estimation
+* Automatic and manual floorplanning
+* Floorplan boundary and overlap validation
+* OpenROAD TCL generation
+* Top-level wrapper generation
+* Block-specific placement and routing settings
+* Metal3/Metal4 pin placement
+* Partition metadata and summaries
+
+## Project Structure
+
+```text
 project/
 ├── scripts/
 │   └── split_net_v4.py
@@ -35,49 +33,68 @@ project/
     ├── tcl/
     ├── top_wrapper.v
     └── partition_info.json
+```
 
-⚙️ CONFIGURATION
-────────────────
+## Configuration
+
 Edit:
 
-    configs/config.json
+```text
+configs/config.json
+```
 
-Key settings include:
-    top_module
-    top_wrapper_module
-    adder_module
-    multiplier_module
-    manual_floorplan
-    block_overrides
+Key settings:
 
-▶️ RUN
-──────
+```text
+top_module
+top_wrapper_module
+adder_module
+multiplier_module
+manual_floorplan
+block_overrides
+```
+
+## Run
+
 From the project root:
 
-    python3 scripts/split_net_v4.py
+```bash
+python3 scripts/split_net_v4.py
+```
 
-Custom configuration:
+Use a custom configuration:
 
-    python3 scripts/split_net_v4.py <config_file>
+```bash
+python3 scripts/split_net_v4.py <config_file>
+```
 
-Help:
+Show available options:
 
-    python3 scripts/split_net_v4.py --help
+```bash
+python3 scripts/split_net_v4.py --help
+```
 
-📤 OUTPUT
-─────────
-Generated partition Verilog files, OpenROAD TCL scripts,
-top_wrapper.v, and partition_info.json are written to the
-configured output directory.
+## Output
 
-🛠️ TROUBLESHOOTING
-───────────────────
-• Check module names against the Verilog netlist.
-• Verify Liberty/LEF paths and technology compatibility.
-• Run from the project root.
-• Check manual floorplan coordinates and region overlap.
-• Reduce placement density if routing fails.
+The flow generates:
 
-────────────────────────────────────────────────────────────
-Project: Netlist Partitioning & OpenROAD Floorplan Generator
-Main script: scripts/split_net_v4.py
+* Partitioned Verilog files
+* OpenROAD TCL scripts
+* `top_wrapper.v`
+* `partition_info.json`
+
+Generated files are placed in the configured output directory.
+
+## Troubleshooting
+
+* Check module names against the Verilog netlist.
+* Verify Liberty and LEF paths.
+* Make sure the technology files are compatible.
+* Run the script from the project root.
+* Check manual floorplan coordinates and region overlap.
+* Reduce placement density if routing fails.
+
+---
+
+**Project:** Netlist Partitioning & OpenROAD Floorplan Generator
+**Main Script:** `scripts/split_net_v4.py`
