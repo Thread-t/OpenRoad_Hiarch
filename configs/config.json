@@ -18,10 +18,11 @@
   "site": "FreePDK45_38x28_10R_NP_162NW_34O",
 
   "output_dir": "generated",
-  
-"_comment_v17": "ARYA UPDATE V2: Added coordinate_mode to support both global_partition and local_macro coordinate generation. local_macro resets each partition origin to (0,0) for correct Macro LEF generation.",
+
+  "_comment_v17": "ARYA UPDATE V2: Added coordinate_mode to support both global_partition and local_macro coordinate generation. local_macro resets each partition origin to (0,0) for correct Macro LEF generation.",
 
   "coordinate_mode": "local_macro",
+
   "manual_floorplan": {
     "enable": true,
 
@@ -38,6 +39,49 @@
       "urx_um": 200.0,
       "ury_um": 200.0
     }
+  },
+
+  "_comment_top_integration": "ARYA UPDATE TOP V1: Added config-driven placement of hardened macros in the top-level hierarchical design.",
+
+  "top_integration": {
+    "top_module": "top_wrapper",
+
+    "die_area": {
+      "llx_um": 0.0,
+      "lly_um": 0.0,
+      "urx_um": 240.0,
+      "ury_um": 240.0
+    },
+
+    "core_area": {
+      "llx_um": 5.0,
+      "lly_um": 5.0,
+      "urx_um": 235.0,
+      "ury_um": 235.0
+    },
+
+    "pin_layers": {
+      "horizontal": "metal3",
+      "vertical": "metal4"
+    },
+
+    "macros": [
+      {
+        "module": "adder_32",
+        "instance": "U_ADDER",
+        "lef": "generated/macros/adder_32.lef",
+        "x_um": 10.0,
+        "y_um": 20.0,
+        "orientation": "R0"
+      },
+      {
+        "module": "multiplier_32",
+        "instance": "U_MULTIPLIER",
+        "lef": "generated/macros/multiplier_32.lef",
+        "x_um": 140.0,
+        "y_um": 20.0,
+        "orientation": "R0"
+      }
+    ]
   }
 }
-

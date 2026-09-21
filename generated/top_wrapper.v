@@ -3,17 +3,8 @@
 // Used to reconnect separated partition blocks
 // ======================================================
 
-// Black-box declaration for first partition
-module adder_32 (
-    a, b, sum
-);
-endmodule
-
-// Black-box declaration for second partition
-module multiplier_32 (
-    a, b, product
-);
-endmodule
+// Physical macro definitions are provided by the generated LEF files.
+// No empty black-box module declarations are generated.
 
 // Top wrapper connecting both partitions
 module top_wrapper (

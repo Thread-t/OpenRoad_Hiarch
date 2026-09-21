@@ -674,17 +674,22 @@ def generate_top_wrapper(module_contents, config, output_dir):
         f.write("// Used to reconnect separated partition blocks\n")
         f.write("// ======================================================\n\n")
 
-        f.write("// Black-box declaration for first partition\n")
-        f.write(f"module {adder_module} (\n")
-        f.write(f"    {adder_ports}\n")
-        f.write(");\n")
-        f.write("endmodule\n\n")
+                # ======================================================
+        # ARYA UPDATE V17:
+        # Removed generation of empty black-box module declarations
+        # for adder_32 and multiplier_32.
+        #
+        # These empty modules were interpreted by OpenROAD as RTL
+        # definitions, preventing the tool from treating the
+        # instances as physical macros during top-level integration.
+        #
+        # The macro definitions are now supplied exclusively through
+        # the generated abstract LEF files, so only the top_wrapper
+        # module is emitted.
+        # ======================================================
 
-        f.write("// Black-box declaration for second partition\n")
-        f.write(f"module {mult_module} (\n")
-        f.write(f"    {mult_ports}\n")
-        f.write(");\n")
-        f.write("endmodule\n\n")
+        f.write("// Physical macro definitions are provided by the generated LEF files.\n")
+        f.write("// No empty black-box module declarations are generated.\n\n")
 
         f.write("// Top wrapper connecting both partitions\n")
         f.write(f"module {wrapper_module} (\n")
