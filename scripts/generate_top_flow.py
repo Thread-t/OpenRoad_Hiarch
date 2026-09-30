@@ -12,19 +12,19 @@ Generated file:
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 from typing import Any
 
+# Sayak_V5: Imported shared utilities from flow_utils.py
+from flow_utils import get_project_root, tcl_path, load_and_validate_config
 
 # ==========================================================
 # Project paths
 # ==========================================================
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = SCRIPT_DIR.parent
-
+# Sayak_V5: Replaced manual root calculation with get_project_root()
+PROJECT_ROOT = get_project_root()
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "configs" / "config.json"
 
 INPUT_DIR = PROJECT_ROOT / "inputs"
@@ -41,51 +41,12 @@ OUTPUT_TCL_FILE = TOP_DIR / "top_wrapper_flow.tcl"
 # Helper functions
 # ==========================================================
 
-def load_json(path: Path) -> dict[str, Any]:
-    """Load the JSON configuration file."""
-
-    if not path.is_file():
-        raise FileNotFoundError(
-            f"Configuration file not found: {path}"
-        )
-
-    try:
-        with path.open("r", encoding="utf-8") as file:
-            config = json.load(file)
-
-    except json.JSONDecodeError as error:
-        raise ValueError(
-            f"Invalid JSON in {path}\n"
-            f"Line {error.lineno}, "
-            f"column {error.colno}: {error.msg}"
-        ) from error
-
-    if not isinstance(config, dict):
-        raise ValueError(
-            "The root of config.json must be a JSON object."
-        )
-
-    return config
-
-
 def require_file(path: Path, description: str) -> None:
     """Check that a required file exists."""
-
     if not path.is_file():
         raise FileNotFoundError(
             f"{description} not found: {path}"
         )
-
-
-def project_relative(path: Path) -> str:
-    """
-    Convert a path to a project-relative Linux-style path
-    for use inside OpenROAD TCL.
-    """
-
-    return path.resolve().relative_to(
-        PROJECT_ROOT.resolve()
-    ).as_posix()
 
 
 def require_string(
@@ -94,14 +55,11 @@ def require_string(
     context: str
 ) -> str:
     """Read a required non-empty string."""
-
     value = mapping.get(key)
-
     if not isinstance(value, str) or not value.strip():
         raise ValueError(
             f"{context}.{key} must be a non-empty string."
         )
-
     return value.strip()
 
 
@@ -111,15 +69,12 @@ def require_number(
     context: str
 ) -> float:
     """Read a required numeric value."""
-
     if key not in mapping:
         raise KeyError(
             f"Missing {context}.{key}"
         )
-
     try:
         return float(mapping[key])
-
     except (TypeError, ValueError) as error:
         raise ValueError(
             f"{context}.{key} must be numeric. "
@@ -132,35 +87,17 @@ def read_rectangle(
     context: str
 ) -> dict[str, float]:
     """Read and validate a rectangular area."""
-
     rectangle = {
-        "llx_um": require_number(
-            mapping,
-            "llx_um",
-            context
-        ),
-        "lly_um": require_number(
-            mapping,
-            "lly_um",
-            context
-        ),
-        "urx_um": require_number(
-            mapping,
-            "urx_um",
-            context
-        ),
-        "ury_um": require_number(
-            mapping,
-            "ury_um",
-            context
-        ),
+        "llx_um": require_number(mapping, "llx_um", context),
+        "lly_um": require_number(mapping, "lly_um", context),
+        "urx_um": require_number(mapping, "urx_um", context),
+        "ury_um": require_number(mapping, "ury_um", context),
     }
 
     if rectangle["urx_um"] <= rectangle["llx_um"]:
         raise ValueError(
             f"{context}: urx_um must be greater than llx_um."
         )
-
     if rectangle["ury_um"] <= rectangle["lly_um"]:
         raise ValueError(
             f"{context}: ury_um must be greater than lly_um."
@@ -173,7 +110,6 @@ def rectangle_to_tcl(
     rectangle: dict[str, float]
 ) -> str:
     """Convert a rectangle to OpenROAD TCL coordinates."""
-
     return (
         f'{rectangle["llx_um"]:g} '
         f'{rectangle["lly_um"]:g} '
@@ -190,7 +126,6 @@ def read_top_configuration(
     config: dict[str, Any]
 ) -> dict[str, Any]:
     """Read and validate the top_integration section."""
-
     top_config = config.get("top_integration")
 
     if not isinstance(top_config, dict):
@@ -210,20 +145,11 @@ def read_top_configuration(
     macros_raw = top_config.get("macros")
 
     if not isinstance(die_area_raw, dict):
-        raise KeyError(
-            "Missing top_integration.die_area."
-        )
-
+        raise KeyError("Missing top_integration.die_area.")
     if not isinstance(core_area_raw, dict):
-        raise KeyError(
-            "Missing top_integration.core_area."
-        )
-
+        raise KeyError("Missing top_integration.core_area.")
     if not isinstance(pin_layers_raw, dict):
-        raise KeyError(
-            "Missing top_integration.pin_layers."
-        )
-
+        raise KeyError("Missing top_integration.pin_layers.")
     if not isinstance(macros_raw, list) or not macros_raw:
         raise ValueError(
             "top_integration.macros must contain "
@@ -234,7 +160,6 @@ def read_top_configuration(
         die_area_raw,
         "top_integration.die_area"
     )
-
     core_area = read_rectangle(
         core_area_raw,
         "top_integration.core_area"
@@ -245,7 +170,6 @@ def read_top_configuration(
         "horizontal",
         "top_integration.pin_layers"
     )
-
     vertical_layer = require_string(
         pin_layers_raw,
         "vertical",
@@ -268,7 +192,6 @@ def read_top_configuration(
     instance_names: set[str] = set()
 
     for index, macro_raw in enumerate(macros_raw):
-
         context = f"top_integration.macros[{index}]"
 
         if not isinstance(macro_raw, dict):
@@ -276,41 +199,12 @@ def read_top_configuration(
                 f"{context} must be a JSON object."
             )
 
-        module = require_string(
-            macro_raw,
-            "module",
-            context
-        )
-
-        instance = require_string(
-            macro_raw,
-            "instance",
-            context
-        )
-
-        lef_relative = require_string(
-            macro_raw,
-            "lef",
-            context
-        )
-
-        orientation = require_string(
-            macro_raw,
-            "orientation",
-            context
-        )
-
-        x_um = require_number(
-            macro_raw,
-            "x_um",
-            context
-        )
-
-        y_um = require_number(
-            macro_raw,
-            "y_um",
-            context
-        )
+        module = require_string(macro_raw, "module", context)
+        instance = require_string(macro_raw, "instance", context)
+        lef_relative = require_string(macro_raw, "lef", context)
+        orientation = require_string(macro_raw, "orientation", context)
+        x_um = require_number(macro_raw, "x_um", context)
+        y_um = require_number(macro_raw, "y_um", context)
 
         if instance in instance_names:
             raise ValueError(
@@ -318,7 +212,6 @@ def read_top_configuration(
             )
 
         instance_names.add(instance)
-
         lef_path = PROJECT_ROOT / lef_relative
 
         require_file(
@@ -356,7 +249,6 @@ def generate_tcl(
     top_config: dict[str, Any]
 ) -> str:
     """Generate the top-level integration TCL."""
-
     tech_lef = PROJECT_ROOT / config.get(
         "tech_lef_file",
         "inputs/NangateOpenCellLibrary.tech.lef"
@@ -372,25 +264,10 @@ def generate_tcl(
         "inputs/NangateOpenCellLibrary_typical.lib"
     )
 
-    require_file(
-        tech_lef,
-        "Technology LEF"
-    )
-
-    require_file(
-        standard_cell_lef,
-        "Standard-cell LEF"
-    )
-
-    require_file(
-        liberty_file,
-        "Liberty file"
-    )
-
-    require_file(
-        TOP_WRAPPER_FILE,
-        "Top-wrapper Verilog"
-    )
+    require_file(tech_lef, "Technology LEF")
+    require_file(standard_cell_lef, "Standard-cell LEF")
+    require_file(liberty_file, "Liberty file")
+    require_file(TOP_WRAPPER_FILE, "Top-wrapper Verilog")
 
     site_name = config.get(
         "site",
@@ -404,27 +281,13 @@ def generate_tcl(
         )
 
     top_module = top_config["top_module"]
-
-    die_area = rectangle_to_tcl(
-        top_config["die_area"]
-    )
-
-    core_area = rectangle_to_tcl(
-        top_config["core_area"]
-    )
-
+    die_area = rectangle_to_tcl(top_config["die_area"])
+    core_area = rectangle_to_tcl(top_config["core_area"])
     horizontal_layer = top_config["horizontal_layer"]
     vertical_layer = top_config["vertical_layer"]
 
-    output_def = (
-        TOP_RESULTS_DIR /
-        f"{top_module}_macros_placed.def"
-    )
-
-    output_odb = (
-        TOP_RESULTS_DIR /
-        f"{top_module}_macros_placed.odb"
-    )
+    output_def = TOP_RESULTS_DIR / f"{top_module}_macros_placed.def"
+    output_odb = TOP_RESULTS_DIR / f"{top_module}_macros_placed.odb"
 
     lines: list[str] = [
         "# ==========================================================",
@@ -435,29 +298,30 @@ def generate_tcl(
         "# ==========================================================",
         "",
         "# === Create output directories ===",
-        f"file mkdir {project_relative(TOP_RESULTS_DIR)}",
-        f"file mkdir {project_relative(TOP_REPORTS_DIR)}",
+        # Sayak_V5: Replaced custom inline TCL formatting with shared tcl_path()
+        f"file mkdir {tcl_path(TOP_RESULTS_DIR)}",
+        f"file mkdir {tcl_path(TOP_REPORTS_DIR)}",
         "",
         "# === Read technology and standard-cell libraries ===",
-        f"read_lef {project_relative(tech_lef)}",
-        f"read_lef {project_relative(standard_cell_lef)}",
-        f"read_liberty {project_relative(liberty_file)}",
+        f"read_lef {tcl_path(tech_lef)}",
+        f"read_lef {tcl_path(standard_cell_lef)}",
+        f"read_liberty {tcl_path(liberty_file)}",
         "",
         "# === Read hardened macro LEFs ===",
     ]
 
     for macro in top_config["macros"]:
         lines.append(
-            f"read_lef "
-            f"{project_relative(macro['lef_path'])}"
+            # Sayak_V5: Used shared tcl_path()
+            f"read_lef {tcl_path(macro['lef_path'])}"
         )
 
     lines.extend(
         [
             "",
             "# === Read and link top-level wrapper ===",
-            f"read_verilog "
-            f"{project_relative(TOP_WRAPPER_FILE)}",
+            # Sayak_V5: Used shared tcl_path()
+            f"read_verilog {tcl_path(TOP_WRAPPER_FILE)}",
             f"link_design {top_module}",
             "",
             "# === Create top-level floorplan ===",
@@ -508,13 +372,14 @@ def generate_tcl(
             "report_design_area",
             "",
             "# === Write top-level results ===",
-            f"write_def {project_relative(output_def)}",
-            f"write_db {project_relative(output_odb)}",
+            # Sayak_V5: Used shared tcl_path()
+            f"write_def {tcl_path(output_def)}",
+            f"write_db {tcl_path(output_odb)}",
             "",
             'puts "=============================================="',
             'puts "TOP-LEVEL MACRO INTEGRATION COMPLETED"',
-            f'puts "DEF: {project_relative(output_def)}"',
-            f'puts "ODB: {project_relative(output_odb)}"',
+            f'puts "DEF: {tcl_path(output_def)}"',
+            f'puts "ODB: {tcl_path(output_odb)}"',
             'puts "=============================================="',
             "",
         ]
@@ -529,7 +394,6 @@ def generate_tcl(
 
 def main() -> int:
     """Run the generator."""
-
     config_path = DEFAULT_CONFIG_PATH
 
     if len(sys.argv) > 2:
@@ -543,50 +407,24 @@ def main() -> int:
 
     if len(sys.argv) == 2:
         supplied_path = Path(sys.argv[1])
-
         if supplied_path.is_absolute():
             config_path = supplied_path
         else:
             config_path = PROJECT_ROOT / supplied_path
 
     try:
-        config = load_json(config_path)
+        # Sayak_V5: Replaced manual JSON loading with flow_utils.load_and_validate_config
+        config = load_and_validate_config(config_path)
+        top_config = read_top_configuration(config)
 
-        top_config = read_top_configuration(
-            config
-        )
+        TOP_DIR.mkdir(parents=True, exist_ok=True)
+        TOP_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+        TOP_REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
-        TOP_DIR.mkdir(
-            parents=True,
-            exist_ok=True
-        )
+        tcl_content = generate_tcl(config, top_config)
+        OUTPUT_TCL_FILE.write_text(tcl_content, encoding="utf-8")
 
-        TOP_RESULTS_DIR.mkdir(
-            parents=True,
-            exist_ok=True
-        )
-
-        TOP_REPORTS_DIR.mkdir(
-            parents=True,
-            exist_ok=True
-        )
-
-        tcl_content = generate_tcl(
-            config,
-            top_config
-        )
-
-        OUTPUT_TCL_FILE.write_text(
-            tcl_content,
-            encoding="utf-8"
-        )
-
-    except (
-        FileNotFoundError,
-        KeyError,
-        ValueError
-    ) as error:
-
+    except (FileNotFoundError, KeyError, ValueError) as error:
         print(f"\nERROR: {error}")
         return 1
 
@@ -595,7 +433,6 @@ def main() -> int:
     print(f"Generated TCL: {OUTPUT_TCL_FILE}")
 
     print("\nConfigured macro placements:")
-
     for macro in top_config["macros"]:
         print(
             f"  {macro['instance']:<16} "
