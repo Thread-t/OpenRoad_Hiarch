@@ -1,11 +1,15 @@
-import os
 import json
 from pathlib import Path
 
+
 def get_project_root() -> Path:
     """Returns the absolute project root directory."""
-    # Adjust parent levels depending on where flow_utils.py is stored relative to root
-    return Path(__file__).resolve().parent
+
+    # ARYA UPDATE V1:
+    # flow_utils.py is stored inside the scripts directory.
+    # Therefore, the project root is one directory above scripts.
+    return Path(__file__).resolve().parent.parent
+
 
 def tcl_path(path: str | Path) -> str:
     """Converts any path to a POSIX-style string with forward slashes for TCL/OpenROAD."""

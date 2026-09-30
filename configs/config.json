@@ -17,38 +17,55 @@
   "top_wrapper_module": "top_wrapper",
 
   "partitions": [
-    "adder_32",
-    "multiplier_32"
+    "adder_8",
+    "subtractor_8",
+    "mux_8"
   ],
 
   "generate_top_wrapper": true,
 
-  "coordinate_mode": "local_macro", 
+  "coordinate_mode": "local_macro",
 
   "manual_floorplan": {
     "enable": true,
-    "adder_32": {
+
+    "adder_8": {
       "llx_um": 0.0,
       "lly_um": 0.0,
-      "urx_um": 120.0,
+      "urx_um": 110.0,
       "ury_um": 200.0
     },
-    "multiplier_32": {
-      "llx_um": 120.0,
+
+    "subtractor_8": {
+      "llx_um": 110.0,
       "lly_um": 0.0,
-      "urx_um": 200.0,
+      "urx_um": 220.0,
+      "ury_um": 200.0
+    },
+
+    "mux_8": {
+      "llx_um": 220.0,
+      "lly_um": 0.0,
+      "urx_um": 300.0,
       "ury_um": 200.0
     }
   },
 
   "block_overrides": {
-    "adder_32": {
-      "placement_density": 0.70,
+    "adder_8": {
+      "placement_density": 0.60,
       "pin_hor_layer": "metal3",
       "pin_ver_layer": "metal4"
     },
-    "multiplier_32": {
-      "placement_density": 0.55,
+
+    "subtractor_8": {
+      "placement_density": 0.60,
+      "pin_hor_layer": "metal3",
+      "pin_ver_layer": "metal4"
+    },
+
+    "mux_8": {
+      "placement_density": 0.50,
       "pin_hor_layer": "metal3",
       "pin_ver_layer": "metal4"
     }
@@ -56,27 +73,51 @@
 
   "top_integration": {
     "top_module": "top_wrapper",
-    "die_area": { "llx_um": 0.0, "lly_um": 0.0, "urx_um": 340.0, "ury_um": 210.0 },
-    "core_area": { "llx_um": 3.0, "lly_um": 3.0, "urx_um": 337.0, "ury_um": 207.0 },
+
+    "die_area": {
+      "llx_um": 0.0,
+      "lly_um": 0.0,
+      "urx_um": 340.0,
+      "ury_um": 210.0
+    },
+
+    "core_area": {
+      "llx_um": 3.0,
+      "lly_um": 3.0,
+      "urx_um": 337.0,
+      "ury_um": 207.0
+    },
+
     "pin_layers": {
       "horizontal": "metal3",
       "vertical": "metal4"
     },
+
     "macros": [
       {
-        "module": "adder_32",
-        "instance": "U_ADDER", 
-        "lef": "generated/adder_32/results/adder_32.lef",
+        "module": "adder_8",
+        "instance": "U_ADDER",
+        "lef": "generated/adder_8/results/adder_8.lef",
         "orientation": "R0",
         "x_um": 4.0,
         "y_um": 5.0
       },
+
       {
-        "module": "multiplier_32",
-        "instance": "U_MULTIPLIER",
-        "lef": "generated/multiplier_32/results/multiplier_32.lef",
+        "module": "subtractor_8",
+        "instance": "U_SUBTRACTOR",
+        "lef": "generated/subtractor_8/results/subtractor_8.lef",
         "orientation": "R0",
-        "x_um": 132.0,
+        "x_um": 118.0,
+        "y_um": 5.0
+      },
+
+      {
+        "module": "mux_8",
+        "instance": "U_MUX",
+        "lef": "generated/mux_8/results/mux_8.lef",
+        "orientation": "R0",
+        "x_um": 232.0,
         "y_um": 5.0
       }
     ]

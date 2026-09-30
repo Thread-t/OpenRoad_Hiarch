@@ -8,33 +8,45 @@
     "top": "top_design",
     "top_wrapper": "top_wrapper",
     "partitions": [
-      "adder_32",
-      "multiplier_32"
+      "adder_8",
+      "subtractor_8",
+      "mux_8"
     ]
   },
   "area_estimation": {
-    "adder_32": {
-      "module": "adder_32",
+    "adder_8": {
+      "module": "adder_8",
       "cell_counts": {},
       "estimated_area_um2": 0.0
     },
-    "multiplier_32": {
-      "module": "multiplier_32",
+    "subtractor_8": {
+      "module": "subtractor_8",
+      "cell_counts": {},
+      "estimated_area_um2": 0.0
+    },
+    "mux_8": {
+      "module": "mux_8",
       "cell_counts": {},
       "estimated_area_um2": 0.0
     }
   },
   "partition_regions": {
-    "adder_32": {
+    "adder_8": {
       "llx_um": 0.0,
       "lly_um": 0.0,
-      "urx_um": 120.0,
+      "urx_um": 110.0,
       "ury_um": 200.0
     },
-    "multiplier_32": {
-      "llx_um": 120.0,
+    "subtractor_8": {
+      "llx_um": 110.0,
       "lly_um": 0.0,
-      "urx_um": 200.0,
+      "urx_um": 220.0,
+      "ury_um": 200.0
+    },
+    "mux_8": {
+      "llx_um": 220.0,
+      "lly_um": 0.0,
+      "urx_um": 300.0,
       "ury_um": 200.0
     }
   },
@@ -43,28 +55,35 @@
     "default_utilization": 0.7,
     "margin_um": 3.0,
     "block_overrides": {
-      "adder_32": {
-        "placement_density": 0.7,
+      "adder_8": {
+        "placement_density": 0.6,
         "pin_hor_layer": "metal3",
         "pin_ver_layer": "metal4"
       },
-      "multiplier_32": {
-        "placement_density": 0.55,
+      "subtractor_8": {
+        "placement_density": 0.6,
+        "pin_hor_layer": "metal3",
+        "pin_ver_layer": "metal4"
+      },
+      "mux_8": {
+        "placement_density": 0.5,
         "pin_hor_layer": "metal3",
         "pin_ver_layer": "metal4"
       }
     }
   },
   "files": {
-    "source_verilog": "/Users/sayakdeb/Documents/Bremen_Study_files/Third_Sem/Digitall_Lab/Latest_project/Work_31_07_2026 /inputs/top_design_gate.v",
-    "top_wrapper_verilog": "/Users/sayakdeb/Documents/Bremen_Study_files/Third_Sem/Digitall_Lab/Latest_project/Work_31_07_2026 /generated/top_wrapper.v",
+    "source_verilog": "/work/Hierarchical_OpenROAD_Framework_general/inputs/top_design_gate.v",
+    "top_wrapper_verilog": "/work/Hierarchical_OpenROAD_Framework_general/generated/top_wrapper.v",
     "partition_verilog": {
-      "adder_32": "/Users/sayakdeb/Documents/Bremen_Study_files/Third_Sem/Digitall_Lab/Latest_project/Work_31_07_2026 /generated/adder_32/adder_32.v",
-      "multiplier_32": "/Users/sayakdeb/Documents/Bremen_Study_files/Third_Sem/Digitall_Lab/Latest_project/Work_31_07_2026 /generated/multiplier_32/multiplier_32.v"
+      "adder_8": "/work/Hierarchical_OpenROAD_Framework_general/generated/adder_8/adder_8.v",
+      "subtractor_8": "/work/Hierarchical_OpenROAD_Framework_general/generated/subtractor_8/subtractor_8.v",
+      "mux_8": "/work/Hierarchical_OpenROAD_Framework_general/generated/mux_8/mux_8.v"
     },
     "partition_tcl": {
-      "adder_32": "/Users/sayakdeb/Documents/Bremen_Study_files/Third_Sem/Digitall_Lab/Latest_project/Work_31_07_2026 /generated/adder_32/adder_32_flow.tcl",
-      "multiplier_32": "/Users/sayakdeb/Documents/Bremen_Study_files/Third_Sem/Digitall_Lab/Latest_project/Work_31_07_2026 /generated/multiplier_32/multiplier_32_flow.tcl"
+      "adder_8": "/work/Hierarchical_OpenROAD_Framework_general/generated/adder_8/adder_8_flow.tcl",
+      "subtractor_8": "/work/Hierarchical_OpenROAD_Framework_general/generated/subtractor_8/subtractor_8_flow.tcl",
+      "mux_8": "/work/Hierarchical_OpenROAD_Framework_general/generated/mux_8/mux_8_flow.tcl"
     }
   }
 }
