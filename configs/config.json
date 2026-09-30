@@ -1,38 +1,38 @@
 {
-  "_comment": "ARYA UPDATE V1: Updated file paths to use the project folder structure. The Verilog and library files are now read from the inputs/ folder so everyone can run the script without moving files.",
-
-  "verilog_file": "inputs/top_design_gate.v",
-  "lib_file": "inputs/NangateOpenCellLibrary_typical.lib",
-  "tech_lef_file": "inputs/NangateOpenCellLibrary.tech.lef",
-  "lef_file": "inputs/NangateOpenCellLibrary.macro.mod.lef",
-
-  "adder_module": "adder_32",
-  "multiplier_module": "multiplier_32",
-
-  "chip_width": 200.0,
-  "chip_height": 200.0,
+  "chip_width": 340.0,
+  "chip_height": 210.0,
   "dbu_per_micron": 1000,
-  "aspect_ratio": 1.0,
   "utilization": 0.70,
   "margin": 3.0,
   "site": "FreePDK45_38x28_10R_NP_162NW_34O",
 
   "output_dir": "generated",
 
-  "_comment_v17": "ARYA UPDATE V2: Added coordinate_mode to support both global_partition and local_macro coordinate generation. local_macro resets each partition origin to (0,0) for correct Macro LEF generation.",
+  "verilog_file": "inputs/top_design_gate.v",
+  "lib_file": "inputs/NangateOpenCellLibrary_typical.lib",
+  "tech_lef_file": "inputs/NangateOpenCellLibrary.tech.lef",
+  "lef_file": "inputs/NangateOpenCellLibrary.macro.mod.lef",
 
-  "coordinate_mode": "local_macro",
+  "top_module": "top_design",
+  "top_wrapper_module": "top_wrapper",
+
+  "partitions": [
+    "adder_32",
+    "multiplier_32"
+  ],
+
+  "generate_top_wrapper": true,
+
+  "coordinate_mode": "local_macro", 
 
   "manual_floorplan": {
     "enable": true,
-
     "adder_32": {
       "llx_um": 0.0,
       "lly_um": 0.0,
       "urx_um": 120.0,
       "ury_um": 200.0
     },
-
     "multiplier_32": {
       "llx_um": 120.0,
       "lly_um": 0.0,
@@ -41,46 +41,43 @@
     }
   },
 
-  "_comment_top_integration": "ARYA UPDATE TOP V1: Added config-driven placement of hardened macros in the top-level hierarchical design.",
+  "block_overrides": {
+    "adder_32": {
+      "placement_density": 0.70,
+      "pin_hor_layer": "metal3",
+      "pin_ver_layer": "metal4"
+    },
+    "multiplier_32": {
+      "placement_density": 0.55,
+      "pin_hor_layer": "metal3",
+      "pin_ver_layer": "metal4"
+    }
+  },
 
   "top_integration": {
     "top_module": "top_wrapper",
-
-    "die_area": {
-      "llx_um": 0.0,
-      "lly_um": 0.0,
-      "urx_um": 240.0,
-      "ury_um": 240.0
-    },
-
-    "core_area": {
-      "llx_um": 5.0,
-      "lly_um": 5.0,
-      "urx_um": 235.0,
-      "ury_um": 235.0
-    },
-
+    "die_area": { "llx_um": 0.0, "lly_um": 0.0, "urx_um": 340.0, "ury_um": 210.0 },
+    "core_area": { "llx_um": 3.0, "lly_um": 3.0, "urx_um": 337.0, "ury_um": 207.0 },
     "pin_layers": {
       "horizontal": "metal3",
       "vertical": "metal4"
     },
-
     "macros": [
       {
         "module": "adder_32",
-        "instance": "U_ADDER",
-        "lef": "generated/macros/adder_32.lef",
-        "x_um": 10.0,
-        "y_um": 20.0,
-        "orientation": "R0"
+        "instance": "U_ADDER", 
+        "lef": "generated/adder_32/results/adder_32.lef",
+        "orientation": "R0",
+        "x_um": 4.0,
+        "y_um": 5.0
       },
       {
         "module": "multiplier_32",
         "instance": "U_MULTIPLIER",
-        "lef": "generated/macros/multiplier_32.lef",
-        "x_um": 140.0,
-        "y_um": 20.0,
-        "orientation": "R0"
+        "lef": "generated/multiplier_32/results/multiplier_32.lef",
+        "orientation": "R0",
+        "x_um": 132.0,
+        "y_um": 5.0
       }
     ]
   }

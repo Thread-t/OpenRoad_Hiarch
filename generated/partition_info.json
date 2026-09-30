@@ -1,52 +1,40 @@
 {
   "chip_dimensions": {
-    "width_um": 200.0,
-    "height_um": 200.0,
+    "width_um": 340.0,
+    "height_um": 210.0,
     "dbu_per_micron": 1000
   },
   "modules": {
     "top": "top_design",
     "top_wrapper": "top_wrapper",
-    "adder": "adder_32",
-    "multiplier": "multiplier_32"
+    "partitions": [
+      "adder_32",
+      "multiplier_32"
+    ]
   },
   "area_estimation": {
-    "adder": {
+    "adder_32": {
       "module": "adder_32",
       "cell_counts": {},
       "estimated_area_um2": 0.0
     },
-    "multiplier": {
+    "multiplier_32": {
       "module": "multiplier_32",
       "cell_counts": {},
       "estimated_area_um2": 0.0
     }
   },
-  "partition": {
-    "split_ratio": 0.5,
-    "split_direction": "vertical",
-    "adder_region": {
+  "partition_regions": {
+    "adder_32": {
       "llx_um": 0.0,
       "lly_um": 0.0,
       "urx_um": 120.0,
       "ury_um": 200.0
     },
-    "multiplier_region": {
+    "multiplier_32": {
       "llx_um": 120.0,
       "lly_um": 0.0,
       "urx_um": 200.0,
-      "ury_um": 200.0
-    },
-    "adder_blocked_region": {
-      "llx_um": 120.0,
-      "lly_um": 0.0,
-      "urx_um": 200.0,
-      "ury_um": 200.0
-    },
-    "multiplier_blocked_region": {
-      "llx_um": 0.0,
-      "lly_um": 0.0,
-      "urx_um": 120.0,
       "ury_um": 200.0
     }
   },
@@ -68,11 +56,15 @@
     }
   },
   "files": {
-    "source_verilog": "inputs/top_design_gate.v",
-    "adder_verilog": "generated/adder/adder_32.v",
-    "multiplier_verilog": "generated/multiplier/multiplier_32.v",
-    "top_wrapper_verilog": "generated/top_wrapper.v",
-    "adder_tcl": "generated/adder/adder_32_flow.tcl",
-    "multiplier_tcl": "generated/multiplier/multiplier_32_flow.tcl"
+    "source_verilog": "/Users/sayakdeb/Documents/Bremen_Study_files/Third_Sem/Digitall_Lab/Latest_project/Work_31_07_2026 /inputs/top_design_gate.v",
+    "top_wrapper_verilog": "/Users/sayakdeb/Documents/Bremen_Study_files/Third_Sem/Digitall_Lab/Latest_project/Work_31_07_2026 /generated/top_wrapper.v",
+    "partition_verilog": {
+      "adder_32": "/Users/sayakdeb/Documents/Bremen_Study_files/Third_Sem/Digitall_Lab/Latest_project/Work_31_07_2026 /generated/adder_32/adder_32.v",
+      "multiplier_32": "/Users/sayakdeb/Documents/Bremen_Study_files/Third_Sem/Digitall_Lab/Latest_project/Work_31_07_2026 /generated/multiplier_32/multiplier_32.v"
+    },
+    "partition_tcl": {
+      "adder_32": "/Users/sayakdeb/Documents/Bremen_Study_files/Third_Sem/Digitall_Lab/Latest_project/Work_31_07_2026 /generated/adder_32/adder_32_flow.tcl",
+      "multiplier_32": "/Users/sayakdeb/Documents/Bremen_Study_files/Third_Sem/Digitall_Lab/Latest_project/Work_31_07_2026 /generated/multiplier_32/multiplier_32_flow.tcl"
+    }
   }
 }

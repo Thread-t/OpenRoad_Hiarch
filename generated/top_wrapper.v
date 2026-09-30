@@ -1,12 +1,7 @@
 // ======================================================
-// Auto-generated top wrapper
-// Used to reconnect separated partition blocks
+// Auto-generated top wrapper connecting partitions
 // ======================================================
 
-// Physical macro definitions are provided by the generated LEF files.
-// No empty black-box module declarations are generated.
-
-// Top wrapper connecting both partitions
 module top_wrapper (
     input  [31:0] a, b,
     output [31:0] sum,
